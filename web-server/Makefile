@@ -9,7 +9,8 @@ CFLAGS = -g -Wall -Wextra -Werror
 all: server
 
 SERVER_SOURCES = \
-	main.cpp
+	main.cpp \
+	Sock.cpp
 SERVER_OBJECTS = $(subst .cpp,.o,$(SERVER_SOURCES))
 
 server: $(SERVER_OBJECTS)
