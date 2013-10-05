@@ -5,6 +5,7 @@
  * Instantiate the values the server will need to operate.
  */
 Server::Server( int port, std::string root ) : port_number( port ), web_root( root ) {
+    std::cout << "Starting server on port " << port_number << " with root: " << web_root << std::endl;
 }
 
 /**
