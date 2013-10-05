@@ -58,6 +58,7 @@ int main( int argc, char **argv ) {
         std::string sock_results;
         new_sock.receive_data( sock_results );
         std::cout << sock_results;
+        sock.accept( new_sock );
     }
 
 
