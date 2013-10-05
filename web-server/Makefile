@@ -10,7 +10,8 @@ all: server
 
 SERVER_SOURCES = \
 	main.cpp \
-	Sock.cpp
+	Sock.cpp \
+	Server.cpp
 SERVER_OBJECTS = $(subst .cpp,.o,$(SERVER_SOURCES))
 
 server: $(SERVER_OBJECTS)

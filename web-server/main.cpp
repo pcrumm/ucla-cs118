@@ -14,6 +14,7 @@
 #include <unistd.h> // getopt
 #include <iostream> // std::cout, etc.
 #include "Sock.h"
+#include "Server.h"
 
 /**
  * usage()
@@ -48,23 +49,8 @@ int main( int argc, char **argv ) {
     port_number = port_number != 0 ? port_number : DEFAULT_PORT;
     doc_root = doc_root == "" ? "/var/www/" : doc_root;
 
-    std::cout << "Starting Simple Web Server on port " << port_number << "\n";
-    std::cout << "Serving documents from " << doc_root << "\n";
-
-    // Let's create our socket...
-    Socket sock;
-    sock.create();
-    sock.bind( port_number );
-    sock.listen();
-    Socket new_sock;
-    sock.accept( new_sock );
-
-    while (true) {
-        std::string sock_results;
-        new_sock.receive_data( sock_results );
-        std::cout << sock_results;
-        sock.accept( new_sock );
-    }
+    Server serv( port_number, doc_root );
+    serv.listen();
 
 
     return EXIT_SUCCESS;
