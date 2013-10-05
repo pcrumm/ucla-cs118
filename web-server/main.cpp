@@ -26,6 +26,7 @@ void usage() {
     std::cout << "\nUsage:\n" ;
     std::cout << "./server - Run the server on the default port, " << DEFAULT_PORT << "\n";
     std::cout << "./server -p X - Run the server on specified port X\n";
+    std::cout << "./server -r X - Specify the document root as X. Must be an absolute path and end in a slash. Defaults to /var/www\n";
     std::cout << "./server -h - Display this message.\n";
 
     exit( EXIT_SUCCESS );
@@ -33,18 +34,22 @@ void usage() {
 
 int main( int argc, char **argv ) {
     int port_number = 0;
+    std::string doc_root = "";
 
     for( ;; )
-        switch( getopt( argc, argv, "p:h" ) ) {
+        switch( getopt( argc, argv, "p:hr:" ) ) {
             case 'p': port_number = atoi( optarg ); break;
             case 'h': default: usage(); break;
+            case 'r': doc_root.assign( optarg );
             case -1: goto options_exhausted;
         }
     options_exhausted:;
 
     port_number = port_number != 0 ? port_number : DEFAULT_PORT;
+    doc_root = doc_root == "" ? "/var/www/" : doc_root;
 
     std::cout << "Starting Simple Web Server on port " << port_number << "\n";
+    std::cout << "Serving documents from " << doc_root << "\n";
 
     // Let's create our socket...
     Socket sock;
