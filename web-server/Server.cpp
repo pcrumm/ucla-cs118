@@ -1,5 +1,7 @@
 #include "Server.h"
 #include <iostream>
+#include <string>
+#include <cstring>
 
 /**
  * Instantiate the values the server will need to operate.
@@ -33,5 +35,25 @@ void Server::listen() {
  * See a request and respond accordingly.
  */
 void Server::handle_request( std::string request_data ) {
-    std::cout << request_data;
+    std::cout << "File name: " << extract_requested_file( request_data ) << "\n";
+}
+
+/**
+ * We need to figure out what file we're after. Here's an easy way.
+ * When we parse the HTTP header, we only care about the first line.
+ */
+std::string Server::extract_requested_file( std::string request_data ) {
+    char* request = (char*)malloc( request_data.size() + 1 );
+    memcpy( request, request_data.c_str(), request_data.size() + 1 );
+    char* tokens = strtok( request, " " );
+
+    int i = 0;
+    while ( tokens != NULL ) {
+        if ( i == 2 ) {
+            std::string file_name( tokens );
+            return file_name;
+        }
+        i++;
+    }
+
 }

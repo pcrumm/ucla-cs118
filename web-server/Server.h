@@ -11,6 +11,8 @@ public:
     void listen();
     void handle_request( std::string request_data );
 
+    std::string extract_requested_file( std::string request_data );
+
 private:
     int port_number;
     std::string web_root;
