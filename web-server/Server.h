@@ -9,7 +9,7 @@ public:
     Server( int port, std::string root );
 
     void listen();
-    void handle_request( std::string request_data );
+    std::string handle_request( std::string request_data );
 
     std::string extract_requested_file( std::string request_data );
 
