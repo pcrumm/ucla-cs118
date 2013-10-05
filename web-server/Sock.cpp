@@ -74,13 +74,14 @@ bool Socket::send_data( std::string data ) {
  */
 bool Socket::receive_data( std::string& data ) {
     char buffer[ MAX_REQUEST_SIZE + 1 ];
+    memset( buffer, '\0', sizeof( buffer ) );
 
     int receive_status = recv( sock, buffer, MAX_REQUEST_SIZE, 0 );
 
     switch( receive_status ) {
         case -1:
-            return false;
         case 0:
+            data = "";
             return false;
         default:
             data = buffer;
