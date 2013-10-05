@@ -42,6 +42,20 @@ bool Socket::bind( int port_number ) {
 }
 
 /**
+ * Accept a connection on a socket.
+ */
+bool Socket::accept( Socket& new_sock ) {
+    int addr_length = sizeof( sock_addr );
+    new_sock.sock = ::accept(
+        sock,
+        ( sockaddr * ) &sock_addr,
+        ( socklen_t * ) &addr_length
+    );
+
+    return new_sock.sock != -1;
+}
+
+/**
  * Make a binded socket listen.
  */
 bool Socket::listen() {

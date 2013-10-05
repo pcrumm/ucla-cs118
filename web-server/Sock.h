@@ -22,6 +22,7 @@ public:
     bool create();
     bool bind( int port_number );
     bool listen();
+    bool accept( Socket& new_sock );
 
     bool send_data ( std::string data );
     bool receive_data ( std::string& data );
