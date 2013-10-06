@@ -2,13 +2,14 @@
 #include <iostream>
 #include <string>
 #include <cstring>
+#include <fstream>
 
 /**
  * Instantiate the values the server will need to operate.
  */
 Server::Server( int port, std::string root ) : port_number( port ), web_root( root ) {
     // ensure the web root doesn't end in a /
-    if ( web_root.substr( -1, 1 ) == "/" )
+    if ( web_root.substr( web_root.length() - 2, 1 ) == "/" )
         web_root = web_root.substr( 0, web_root.length() - 1 );
 
     std::cout << "Starting server on port " << port_number << " with root: " << web_root << std::endl;
@@ -36,8 +37,31 @@ void Server::listen() {
  * See a request and respond accordingly.
  */
 std::string Server::handle_request( std::string request_data ) {
-    std::cout << "File name: " << extract_requested_file( request_data ) << "\n";
-    return "Message received.";
+    return retrieve_requested_file( extract_requested_file( request_data ) );
+}
+
+/**
+ * Serve the requested file, relative to the web root.
+ */
+std::string Server::retrieve_requested_file( std::string file_name ) {
+    std::string full_path = web_root + file_name;
+    std::string file_data;
+
+    std::ifstream ifs;
+    ifs.open( full_path.c_str(), std::ifstream::in );
+
+    if ( !ifs.is_open() )
+        return "File not found.";
+
+    char c = ifs.get();
+    while ( ifs.good() ) {
+        file_data.push_back(c);
+        c = ifs.get();
+    }
+
+    ifs.close();
+
+    return file_data;
 }
 
 /**

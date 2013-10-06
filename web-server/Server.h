@@ -12,6 +12,7 @@ public:
     std::string handle_request( std::string request_data );
 
     std::string extract_requested_file( std::string request_data );
+    std::string retrieve_requested_file( std::string file_name );
 
 private:
     int port_number;
