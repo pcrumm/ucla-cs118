@@ -4,6 +4,9 @@
 #include <cstring>
 #include <fstream>
 
+#define HTTP_OK 200
+#define HTTP_NOT_FOUND 404
+
 /**
  * Instantiate the values the server will need to operate.
  */
@@ -37,31 +40,36 @@ void Server::listen() {
  * See a request and respond accordingly.
  */
 std::string Server::handle_request( std::string request_data ) {
-    return retrieve_requested_file( extract_requested_file( request_data ) );
+    std::string file_content;
+    int response_code = retrieve_requested_file( extract_requested_file( request_data ), file_content );
+
+    return file_content;
 }
 
 /**
  * Serve the requested file, relative to the web root.
  */
-std::string Server::retrieve_requested_file( std::string file_name ) {
+int Server::retrieve_requested_file( std::string file_name, std::string& response_data ) {
     std::string full_path = web_root + file_name;
-    std::string file_data;
 
     std::ifstream ifs;
     ifs.open( full_path.c_str(), std::ifstream::in );
 
     if ( !ifs.is_open() )
-        return "File not found.";
+    {
+        response_data = "File not found.";
+        return HTTP_404;
+    }
 
     char c = ifs.get();
     while ( ifs.good() ) {
-        file_data.push_back(c);
+        response_data.push_back(c);
         c = ifs.get();
     }
 
     ifs.close();
 
-    return file_data;
+    return HTTP_OK;
 }
 
 /**
