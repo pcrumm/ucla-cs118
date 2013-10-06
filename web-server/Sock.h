@@ -5,6 +5,8 @@
 #include <netinet/in.h> // sockaddr_in
 #include <arpa/inet.h>
 #include <string> // std::string
+#include <cstring> // memset etc.
+#include <unistd.h>
 
 /**
  * When we read in data, we need to know how large

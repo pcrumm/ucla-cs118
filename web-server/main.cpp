@@ -16,6 +16,10 @@
 #include "Sock.h"
 #include "Server.h"
 
+#include <cstdio> // prinf
+#include <cstdlib> // exit
+#include <signal.h> // SIGINT etc.
+
 Server *serv = NULL;
 
 /**
