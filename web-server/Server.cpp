@@ -3,6 +3,7 @@
 #include <string>
 #include <cstring>
 #include <fstream>
+#include <sstream>
 
 #define HTTP_OK 200
 #define HTTP_NOT_FOUND 404
@@ -43,7 +44,7 @@ std::string Server::handle_request( std::string request_data ) {
     std::string file_content;
     int response_code = retrieve_requested_file( extract_requested_file( request_data ), file_content );
 
-    return file_content;
+    return assemble_http_response( file_content, response_code );
 }
 
 /**
@@ -58,7 +59,7 @@ int Server::retrieve_requested_file( std::string file_name, std::string& respons
     if ( !ifs.is_open() )
     {
         response_data = "File not found.";
-        return HTTP_404;
+        return HTTP_NOT_FOUND;
     }
 
     char c = ifs.get();
@@ -91,3 +92,30 @@ std::string Server::extract_requested_file( std::string request_data ) {
         i++;
     }
 }
+
+/**
+ * Assemble the whole HTTP response, including the headers and content.
+ * This should be sent directly back to the browser.
+ * @todo support for other MIME types.
+ */
+std::string Server::assemble_http_response( std::string response_data, int response_code ) {
+    std::stringstream response;
+    response << "HTTP/1.1 ";
+
+    // We support two response codes, 404 and 200. 200 is default.
+    switch( response_code ) {
+        case 404:
+            response << "404 NOT FOUND\n";
+            break;
+        case 200:
+        default:
+            response << "200 OK\n";
+            break;
+    }
+
+    response << "Content-Type: text/html; charset=utf-8\n"; // @todo multiple MIME
+    response << "Content-Length: " << response_data.size() << "\n\n";
+    response << response_data;
+
+    return response.str();
+ }

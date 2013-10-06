@@ -12,7 +12,8 @@ public:
     std::string handle_request( std::string request_data );
 
     std::string extract_requested_file( std::string request_data );
-    std::string retrieve_requested_file( std::string file_name );
+    int retrieve_requested_file( std::string file_name, std::string& response_data );
+    std::string assemble_http_response( std::string response_data, int response_code );
 
 private:
     int port_number;
