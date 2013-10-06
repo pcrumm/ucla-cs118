@@ -78,19 +78,23 @@ int Server::retrieve_requested_file( std::string file_name, std::string& respons
  * When we parse the HTTP header, we only care about the first line.
  */
 std::string Server::extract_requested_file( std::string request_data ) {
-    char* request = (char*)malloc( request_data.size() + 1 );
-    memcpy( request, request_data.c_str(), request_data.size() + 1 );
-    char* tokens = strtok( request, " " );
+    char* request_copy = new char[request_data.size() + 1];
+    memset( request_copy, '\0', request_data.size() + 1 );
+    strncpy( request_copy, request_data.c_str(), request_data.size() );
 
-    int i = 0;
-    while ( tokens != NULL ) {
-        if ( i == 1 ) {
-            std::string file_name( tokens );
-            return file_name;
-        }
-        tokens = strtok( NULL, " " );
-        i++;
-    }
+    // Token now holds the method like GET or POST
+    char *token = strtok( request_copy, " " );
+
+    // Now we have the url
+    token = strtok( NULL, " " );
+
+    std::string file_name = "";
+
+    if ( NULL != token )
+        file_name = token;
+
+    delete request_copy;
+    return file_name;
 }
 
 /**
