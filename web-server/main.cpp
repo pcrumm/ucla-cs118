@@ -16,6 +16,20 @@
 #include "Sock.h"
 #include "Server.h"
 
+Server *serv = NULL;
+
+/**
+ * Signal handler which terminates the server
+ */
+void sig_handler( int signal ) {
+    printf( "Caught signal %i, exiting\n", signal );
+
+    delete serv;
+    serv = NULL;
+
+    exit(signal);
+}
+
 /**
  * usage()
  *
@@ -34,6 +48,11 @@ void usage() {
 }
 
 int main( int argc, char **argv ) {
+    // Register sig handlers
+    signal( SIGHUP, sig_handler );
+    signal( SIGINT, sig_handler );
+    signal( SIGTERM, sig_handler );
+
     int port_number = 0;
     std::string doc_root = "";
 
@@ -41,7 +60,7 @@ int main( int argc, char **argv ) {
         switch( getopt( argc, argv, "p:hr:" ) ) {
             case 'p': port_number = atoi( optarg ); break;
             case 'h': default: usage(); break;
-            case 'r': doc_root.assign( optarg );
+            case 'r': doc_root.assign( optarg ); break;
             case -1: goto options_exhausted;
         }
     options_exhausted:;
@@ -49,9 +68,8 @@ int main( int argc, char **argv ) {
     port_number = port_number != 0 ? port_number : DEFAULT_PORT;
     doc_root = doc_root == "" ? "/var/www/" : doc_root;
 
-    Server serv( port_number, doc_root );
-    serv.listen();
-
+    serv = new Server( port_number, doc_root );
+    serv->listen();
 
     return EXIT_SUCCESS;
 }
