@@ -4,9 +4,10 @@
 #include <cstring>
 #include <fstream>
 #include <sstream>
+#include <algorithm>
 
-#define HTTP_OK 200
-#define HTTP_NOT_FOUND 404
+#define HTTP_OK "200 OK"
+#define HTTP_NOT_FOUND "404 NOT FOUND"
 
 /**
  * Instantiate the values the server will need to operate.
@@ -33,34 +34,56 @@ void Server::listen() {
 
         std::string sock_results;
         new_sock.receive_data( sock_results );
-        new_sock.send_data( handle_request( sock_results ) );
+        handle_request( new_sock, sock_results );
     }
 }
 
 /**
  * See a request and respond accordingly.
+ *
+ * Assemble the whole HTTP response, including the headers and content.
+ * This should be sent directly back to the browser.
  */
-std::string Server::handle_request( std::string request_data ) {
-    std::string file_content;
-    int response_code = retrieve_requested_file( extract_requested_file( request_data ), file_content );
+void Server::handle_request( Socket& response_socket, const std::string& request_data ) {
+    std::string file_name = extract_requested_file( request_data );
+    std::string file_ext  = "";
+    std::string mime_type = "";
+    std::string response_code = "";
 
-    return assemble_http_response( file_content, response_code );
-}
-
-/**
- * Serve the requested file, relative to the web root.
- */
-int Server::retrieve_requested_file( std::string file_name, std::string& response_data ) {
-    std::string full_path = web_root + file_name;
-
+    std::stringstream header;
     std::ifstream ifs;
-    ifs.open( full_path.c_str(), std::ifstream::in );
+    std::string response_data;
 
-    if ( !ifs.is_open() )
-    {
-        response_data = "File not found.";
-        return HTTP_NOT_FOUND;
+    // Bind the url root to index.html
+    if ( "/" == file_name )
+        file_name = "/index.html";
+
+    // Grab the file extention if we find a '.'
+    size_t ext_index = file_name.rfind( '.' );
+    if ( std::string::npos != ext_index )
+        file_ext = file_name.substr( ext_index, std::string::npos );
+
+    // Grab mime type
+    std::transform(file_ext.begin(), file_ext.end(), file_ext.begin(), ::tolower);
+    if ( ".html" == file_ext )
+        mime_type = "text/html; charset=utf-8";
+    else if ( ".gif" == file_ext )
+        mime_type = "image/gif";
+    else if( ".jpeg" == file_ext || ".jpg" == file_ext )
+        mime_type = "image/jpeg";
+    else
+        mime_type = "test/plain";
+
+    // Attempt to open the file if valid name
+    if ( file_name.size() > 0 ) {
+        file_name = web_root + file_name;
+        ifs.open( file_name.c_str(), std::ifstream::in );
     }
+
+    if ( ifs.is_open() )
+        response_code = HTTP_OK;
+    else
+        response_code = HTTP_NOT_FOUND;
 
     char c = ifs.get();
     while ( ifs.good() ) {
@@ -70,7 +93,21 @@ int Server::retrieve_requested_file( std::string file_name, std::string& respons
 
     ifs.close();
 
-    return HTTP_OK;
+    // Build response header
+    header << "HTTP/1.1 " << response_code << std::endl;
+
+    if ( HTTP_NOT_FOUND == response_code ) {
+        header << "Content-Length: " << response_code.size() << "\n\n";
+        response_socket.send_data( header.str() );
+        response_socket.send_data( response_code );
+        return;
+    }
+
+    header << "Content-Type: " << mime_type << std::endl;
+    header << "Content-Length: " << response_data.size() << "\n\n";
+
+    response_socket.send_data( header.str() );
+    response_socket.send_data( response_data );
 }
 
 /**
@@ -96,30 +133,3 @@ std::string Server::extract_requested_file( std::string request_data ) {
     delete request_copy;
     return file_name;
 }
-
-/**
- * Assemble the whole HTTP response, including the headers and content.
- * This should be sent directly back to the browser.
- * @todo support for other MIME types.
- */
-std::string Server::assemble_http_response( std::string response_data, int response_code ) {
-    std::stringstream response;
-    response << "HTTP/1.1 ";
-
-    // We support two response codes, 404 and 200. 200 is default.
-    switch( response_code ) {
-        case 404:
-            response << "404 NOT FOUND\n";
-            break;
-        case 200:
-        default:
-            response << "200 OK\n";
-            break;
-    }
-
-    response << "Content-Type: text/html; charset=utf-8\n"; // @todo multiple MIME
-    response << "Content-Length: " << response_data.size() << "\n\n";
-    response << response_data;
-
-    return response.str();
- }
