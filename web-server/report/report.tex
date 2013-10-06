@@ -1,0 +1,33 @@
+\title{Concurrent Web Server Using BSD Sockets}
+\author{
+	Phil Crumm \\
+	804-005-575
+		\and
+	Ivan Petkov \\
+	704-046-431
+}
+\date{\today}
+
+\documentclass[12pt]{article}
+
+\begin{document}
+\maketitle
+
+\section{Web Server Design}
+We have created a very rudimentary web server using BSD sockets. Upon starting the server, we create one socket using system-level calls. This socket is created, opened, bound to a port, begins listening, and is finally told to accept connections on another socket. Following this, we pass the received request off to a handler function. This handler function parses the request to determine which filename is requested (by tokenizing the request by spaces and looking for the 1-position element). It then looks for the requested file on the filesystem, and responds appropriately.
+
+By default, all requests are served with a MIME type of text/plain. We check the file extension to recognize other cases: if a file is suffixed with \emph{.html}, the file is served as text/html. Similarly, if the file is suffixed with \emph{.jpg} or \emph{.gif}, the appropriate image MIME type will be used.
+
+\section{Implementation Difficulties}
+
+\section{Running The Server}
+To run the server, first build it using the Makefile.
+Next, simply run the server as so:
+
+./server -r /path/to/web/root -p 1234
+
+Where \emph{-r} is the absolute path to the web root, where documents should be served out of (required), and \emph{-p} is the port to run the server on. If \emph{-p} is not specified, the server will be ran on its default port, 9529.
+
+\section{Client/Server Output}
+
+\end{document}
