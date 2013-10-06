@@ -1,2 +1,12 @@
 server
 .o
+
+# LaTeX aux files
+report/*.aux
+report/*.fdb_latexmk
+report/*.log
+report/*.pdf
+report/*.synctex.gz
+
+# Don't accidentally ignore .tex files!
+!report/*.tex
