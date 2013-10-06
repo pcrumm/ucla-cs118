@@ -7,6 +7,10 @@
  * Instantiate the values the server will need to operate.
  */
 Server::Server( int port, std::string root ) : port_number( port ), web_root( root ) {
+    // ensure the web root doesn't end in a /
+    if ( web_root.substr( -1, 1 ) == "/" )
+        web_root = web_root.substr( 0, web_root.length() - 1 );
+
     std::cout << "Starting server on port " << port_number << " with root: " << web_root << std::endl;
 }
 
