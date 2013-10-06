@@ -27,7 +27,7 @@ void usage() {
     std::cout << "\nUsage:\n" ;
     std::cout << "./server - Run the server on the default port, " << DEFAULT_PORT << "\n";
     std::cout << "./server -p X - Run the server on specified port X\n";
-    std::cout << "./server -r X - Specify the document root as X. Must be an absolute path and end in a slash. Defaults to /var/www\n";
+    std::cout << "./server -r X - Specify the document root as X. Must be an absolute path. Defaults to /var/www\n";
     std::cout << "./server -h - Display this message.\n";
 
     exit( EXIT_SUCCESS );

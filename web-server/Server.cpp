@@ -47,10 +47,11 @@ std::string Server::extract_requested_file( std::string request_data ) {
 
     int i = 0;
     while ( tokens != NULL ) {
-        if ( i == 2 ) {
+        if ( i == 1 ) {
             std::string file_name( tokens );
             return file_name;
         }
+        tokens = strtok( NULL, " " );
         i++;
     }
 }
