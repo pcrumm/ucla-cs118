@@ -9,16 +9,18 @@
 \date{\today}
 
 \documentclass[12pt]{article}
+\usepackage{indentfirst}
 
 \begin{document}
 \maketitle
 
 \section{Web Server Design}
-We have created a very rudimentary web server using BSD sockets. Upon starting the server, we create one socket using system-level calls. This socket is created, opened, bound to a port, begins listening, and is finally told to accept connections on another socket. Following this, we pass the received request off to a handler function. This handler function parses the request to determine which filename is requested (by tokenizing the request by spaces and looking for the 1-position element). It then looks for the requested file on the filesystem, and responds appropriately.
+We have created a very rudimentary web server using BSD sockets. Upon starting the server, we create one socket using system-level calls. This socket is created, opened, bound to a port, begins listening, and is finally told to accept connections on another socket. Following this, we pass the received request off to a handler function. This handler function parses the request to determine which filename is requested (by tokenizing the request by spaces and looking for the 1-position element). It then looks for the requested file on the filesystem, and responds appropriately. If no path is requested (i.e. the root URL is requested), we assume a file named ``index.html'' has been requested and serve it accordingly.
 
 By default, all requests are served with a MIME type of text/plain. We check the file extension to recognize other cases: if a file is suffixed with \emph{.html}, the file is served as text/html. Similarly, if the file is suffixed with \emph{.jpg} or \emph{.gif}, the appropriate image MIME type will be used.
 
 \section{Implementation Difficulties}
+We chose to implement our server in a such a way so that it would handle requests indefinitely, and run until interrupted. During building and rerunning the server, we noticed that at times the server would not bind to the default port (9529) but it would end up binding to another available port. We believe sending an interrupt signal to the server would cause it to exit without fully closing the socket, thus relying on the system to clean it up at a later time. As the port appeared to be in use after the server was restared, the system would bind the new socket to a random port. When this occured, sending HTTP requests to the expected port would result in connection errors. The best way we could find to mitigate the issue was to add a signal handler to deinitialize the server and close the socket it listens to.
 
 \section{Running The Server}
 To run the server, first build it using the Makefile.
