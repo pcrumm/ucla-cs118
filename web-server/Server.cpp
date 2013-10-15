@@ -104,8 +104,6 @@ void Server::handle_request( Socket& response_socket, const std::string& request
     std::ifstream ifs;
     std::string response_data;
 
-    std::cout << "*** Client Request ***\n\n" << request_data << std::endl;
-
     // Grab the file extention if we find a '.'
     size_t ext_index = file_name.rfind( '.' );
     if ( std::string::npos != ext_index )
@@ -148,7 +146,7 @@ void Server::handle_request( Socket& response_socket, const std::string& request
         header << "Content-Length: " << response_code.size() << "\n\n";
         response_socket.send_data( header.str() );
         response_socket.send_data( response_code );
-        std::cout << "*** Response ***\n\n" << header.str() << response_code << std::endl;
+        std::cout << "*** Client Request ***\n\n" << request_data << std::endl;
         return;
     }
 
@@ -158,7 +156,7 @@ void Server::handle_request( Socket& response_socket, const std::string& request
     response_socket.send_data( header.str() );
     response_socket.send_data( response_data );
 
-    std::cout << "*** Response ***\n\n" << header.str() << "Served file: " << file_name << "\n\n\n";
+    std::cout << "*** Client Request ***\n\n" << request_data << std::endl;
 }
 
 /**
