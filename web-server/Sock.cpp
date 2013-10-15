@@ -58,8 +58,8 @@ bool Socket::accept( Socket& new_sock ) {
 /**
  * Make a binded socket listen.
  */
-bool Socket::listen() {
-    return ( ::listen( sock, 1 ) == 0 );
+bool Socket::listen( int backlog ) {
+    return ( ::listen( sock, backlog ) == 0 );
 }
 
 /**

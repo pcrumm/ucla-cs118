@@ -28,10 +28,22 @@ Server *serv = NULL;
 void sig_handler( int signal ) {
     printf( "Caught signal %i, exiting\n", signal );
 
+    serv->kill_child_forks( signal );
+
     delete serv;
     serv = NULL;
 
     exit(signal);
+}
+
+/**
+ * Alert the server that a child has exited
+ */
+void child_handler( int signal ) {
+    if( signal != SIGCHLD )
+        return;
+
+    serv->child_exited( wait(NULL) );
 }
 
 /**

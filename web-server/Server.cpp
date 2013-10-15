@@ -5,9 +5,11 @@
 #include <fstream>
 #include <sstream>
 #include <algorithm>
+#include <signal.h> // SIGINT etc.
 
 #define HTTP_OK "200 OK"
 #define HTTP_NOT_FOUND "404 NOT FOUND"
+#define MAX_CONNECTIONS 256
 
 /**
  * Instantiate the values the server will need to operate.
@@ -21,20 +23,68 @@ Server::Server( int port, std::string root ) : port_number( port ), web_root( ro
 }
 
 /**
+ * Kill all child forks on exit
+ */
+Server::~Server() {
+    kill_child_forks( SIGINT );
+}
+
+/**
+ * Forward any recieved signals to child forks
+ */
+void Server::kill_child_forks(int sig) {
+    for( Server::child_fork_t::iterator iter = child_forks.begin(); iter != child_forks.end(); iter++)
+        kill( *iter, sig );
+
+    waitpid( -1, NULL, 0 );
+    child_forks.clear();
+}
+
+void Server::child_exited(pid_t p) {
+    child_fork_t::iterator iterator = child_forks.find(p);
+
+    if( iterator != child_forks.end() )
+        child_forks.erase(iterator);
+}
+
+/**
  * Begin listening for a connection.
  */
 void Server::listen() {
     sock.create();
     sock.bind( port_number );
-    sock.listen();
+    sock.listen( MAX_CONNECTIONS );
 
     while (true) {
         Socket new_sock;
         sock.accept( new_sock );
 
+        // Fork a child to handle the request
+        pid_t pid = fork();
+        bool is_child = false;
+
+        // fork succeeded
+        if( pid > 0 ) {
+            child_forks.insert( pid );
+            continue;
+        } else if( pid == 0 ) {
+            is_child = true;
+        }
+
+        // If we fail to fork, have the parent serve the request
+
+        // Clear list of child pids from the child process,
+        // only the parent should kill the children
+        if( is_child )
+            child_forks.clear();
+
         std::string sock_results;
         new_sock.receive_data( sock_results );
         handle_request( new_sock, sock_results );
+
+        // Kill child here
+        if( is_child )
+            exit(0);
     }
 }
 
