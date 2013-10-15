@@ -54,9 +54,7 @@ void Server::handle_request( Socket& response_socket, const std::string& request
     std::ifstream ifs;
     std::string response_data;
 
-    // Bind the url root to index.html
-    if ( "/" == file_name )
-        file_name = "/index.html";
+    std::cout << "*** Client Request ***\n\n" << request_data << std::endl;
 
     // Grab the file extention if we find a '.'
     size_t ext_index = file_name.rfind( '.' );
@@ -100,6 +98,7 @@ void Server::handle_request( Socket& response_socket, const std::string& request
         header << "Content-Length: " << response_code.size() << "\n\n";
         response_socket.send_data( header.str() );
         response_socket.send_data( response_code );
+        std::cout << "*** Response ***\n\n" << header.str() << response_code << std::endl;
         return;
     }
 
@@ -108,6 +107,8 @@ void Server::handle_request( Socket& response_socket, const std::string& request
 
     response_socket.send_data( header.str() );
     response_socket.send_data( response_data );
+
+    std::cout << "*** Response ***\n\n" << header.str() << "Served file: " << file_name << "\n\n\n";
 }
 
 /**
@@ -131,5 +132,12 @@ std::string Server::extract_requested_file( std::string request_data ) {
         file_name = token;
 
     delete request_copy;
+
+    // Bind the url root to index.html or remove the slash before the path
+    if ( "/" == file_name )
+        file_name = "index.html";
+    else if( file_name[0] == '/' )
+        file_name = file_name.substr(1, std::string::npos);
+
     return file_name;
 }
