@@ -38,5 +38,37 @@ Next, simply run the server as so:
 Where \emph{-r} is either the absolute or relative (to the current working directory) path to the web root, where documents should be served out of, and \emph{-p} is the port to run the server on. If \emph{-r} is not specified, {\tt /var/www} will be assumed as the root, and if \emph{-p} is not specified, the server will be ran on its default port, 9529.
 
 \section{Client/Server Output}
+When the server receives an HTTP request from a client it will log the request headers and body on the console. When requesting the root path for example, the output may look like the following:
+
+\begin{verbatim}
+*** Client Request ***
+
+GET / HTTP/1.1
+Host: localhost:9529
+User-Agent: Mozilla/5.0 (X11; Linux x86_64; rv:17.0) Gecko/20130912 Firefox/17.0
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Accept-Language: en-US,en;q=0.5
+Accept-Encoding: gzip, deflate
+Connection: keep-alive
+\end{verbatim}
+
+In the response, the server sets the minimally required headers before sending the response body. The client would recieve a response such as:
+
+\begin{verbatim}
+HTTP/1.1 200 OK
+Content-Type: text/html; charset=utf-8
+Content-Length: 155
+
+<html>
+<head>
+    <title>Hello, World</title>
+</head>
+<body>
+    <h1>Hello, World!</h1>
+    <img src="cat.gif"/>
+    <img src="cat.jpg" height="407"/>
+</body>
+</html>
+\end{verbatim}
 
 \end{document}
