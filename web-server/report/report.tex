@@ -28,7 +28,7 @@ Next, simply run the server as so:
 
 ./server -r /path/to/web/root -p 1234
 
-Where \emph{-r} is the absolute path to the web root, where documents should be served out of (required), and \emph{-p} is the port to run the server on. If \emph{-p} is not specified, the server will be ran on its default port, 9529.
+Where \emph{-r} is either the absolute or relative (to the current working directory) path to the web root, where documents should be served out of, and \emph{-p} is the port to run the server on. If \emph{-r} is not specified, {\tt /var/www} will be assumed as the root, and if \emph{-p} is not specified, the server will be ran on its default port, 9529.
 
 \section{Client/Server Output}
 
