@@ -16,10 +16,19 @@
  */
 Server::Server( int port, std::string root ) : port_number( port ), web_root( root ) {
     // ensure the web root doesn't end in a /
-    if ( web_root.substr( web_root.length() - 2, 1 ) == "/" )
+    if ( web_root[web_root.length() - 1] == '/' )
         web_root = web_root.substr( 0, web_root.length() - 1 );
 
-    std::cout << "Starting server on port " << port_number << " with root: " << web_root << std::endl;
+    std::cout << "Starting server on port " << port_number << " with root: ";
+
+    // Relative path, print the "cwd/#{doc_root}" on the console
+    if ( web_root[0] != '/' ) {
+        char buf[PATH_MAX];
+        if( getcwd( buf, sizeof(buf) ) )
+            std::cout << buf << "/";
+    }
+
+    std::cout << web_root << std::endl;
 }
 
 /**
