@@ -6,6 +6,9 @@
 #include <sstream>
 #include <algorithm>
 #include <signal.h> // SIGINT etc.
+#include <unistd.h> // getcwd()
+#include <wait.h> // wait
+#include <limits.h> // PATH_MAX
 
 #define HTTP_OK "200 OK"
 #define HTTP_NOT_FOUND "404 NOT FOUND"
