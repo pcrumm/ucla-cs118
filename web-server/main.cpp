@@ -19,7 +19,7 @@
 #include <cstdio> // prinf
 #include <cstdlib> // exit
 #include <signal.h> // SIGINT etc.
-#include <wait.h> // wait
+#include <sys/wait.h> // wait
 
 Server *serv = NULL;
 
