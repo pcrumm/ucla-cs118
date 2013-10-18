@@ -24,6 +24,11 @@ By default, all requests are served with a MIME type of text/plain. We check the
 \section{Implementation Difficulties}
 We chose to implement our server in a such a way so that it would handle requests indefinitely, and run until interrupted. During building and rerunning the server, we noticed that at times the server would not bind to the default port (9529) but it would end up binding to another available port. We believe sending an interrupt signal to the server would cause it to exit without fully closing the socket, thus relying on the system to clean it up at a later time. As the port appeared to be in use after the server was restared, the system would bind the new socket to a random port. When this occured, sending HTTP requests to the expected port would result in connection errors. The best way we could find to mitigate the issue was to add a signal handler to deinitialize the server and close the socket it listens to.
 
+\section{Concurrency}
+We have implemented our server to be able to accept up to and serve 256 concurrent connections. The limit of 256 connections was arbitrarily chosen as a suitably high number that should suffice for any small web server. The code could easily be extended to make this value configurable.
+
+We also chose to use process forking when serving requests, as this required minimal effort to implement while allowing for parallel execution. If a fork fails for any reason, the parent process will serve the request itself so that the client is never left to timeout.
+
 \section{Running The Server}
 To run the server, first build it using the Makefile.
 Next, simply run the server as so:
