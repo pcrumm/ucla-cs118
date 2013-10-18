@@ -18,9 +18,11 @@
  * Instantiate the values the server will need to operate.
  */
 Server::Server( int port, std::string root ) : port_number( port ), web_root( root ) {
-    // ensure the web root doesn't end in a /
-    if ( web_root[web_root.length() - 1] == '/' )
-        web_root = web_root.substr( 0, web_root.length() - 1 );
+    // ensure the web root does end in a /
+    // slash prefix is stripped from HTTP requests and without a trailing
+    // slash it would have to be prepended each time
+    if ( web_root[web_root.length() - 1] != '/' )
+        web_root += "/";
 
     std::cout << "Starting server on port " << port_number << " with root: ";
 
