@@ -74,8 +74,8 @@ void Server::listen() {
     // Check that the socket port is actually what we expect
     int listen_port = sock.port_number();
 
-    if ( listen_port == -1 ) {
-        std::cout << "*** ERROR ***\nFailed to open a socket, aborting\n";
+    if ( listen_port == -1 || listen_port == 0 ) {
+        std::cout << "*** ERROR ***\nFailed to open a socket on port " << port_number << ", aborting\n";
         exit( EXIT_FAILURE );
     } else if ( listen_port != port_number ) {
         std::cout << "*** WARNING ***\nUnable to bind to " << port_number << std::endl;
