@@ -54,6 +54,9 @@ void Server::kill_child_forks(int sig) {
     child_forks.clear();
 }
 
+/**
+ * Alert the server a child fork has exited
+ */
 void Server::child_exited(pid_t p) {
     child_fork_t::iterator iterator = child_forks.find(p);
 
