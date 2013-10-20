@@ -29,6 +29,8 @@ public:
     bool send_data ( std::string data );
     bool receive_data ( std::string& data );
 
+    int port_number();
+
 private:
     int sock; // the fd for our socket
     sockaddr_in sock_addr;

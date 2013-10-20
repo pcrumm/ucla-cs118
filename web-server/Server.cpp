@@ -24,7 +24,7 @@ Server::Server( int port, std::string root ) : port_number( port ), web_root( ro
     if ( web_root[web_root.length() - 1] != '/' )
         web_root += "/";
 
-    std::cout << "Starting server on port " << port_number << " with root: ";
+    std::cout << "Starting server with root: ";
 
     // Relative path, print the "cwd/#{doc_root}" on the console
     if ( web_root[0] != '/' ) {
@@ -70,6 +70,19 @@ void Server::child_exited(pid_t p) {
 void Server::listen() {
     sock.create();
     sock.bind( port_number );
+
+    // Check that the socket port is actually what we expect
+    int listen_port = sock.port_number();
+
+    if ( listen_port == -1 ) {
+        std::cout << "*** ERROR ***\nFailed to open a socket, aborting\n";
+        exit( EXIT_FAILURE );
+    } else if ( listen_port != port_number ) {
+        std::cout << "*** WARNING ***\nUnable to bind to " << port_number << std::endl;
+    }
+
+    // Tell the world what we are listening on
+    std::cout << "Listening on port: " << listen_port << std::endl;
     sock.listen( MAX_CONNECTIONS );
 
     while (true) {

@@ -88,3 +88,15 @@ bool Socket::receive_data( std::string& data ) {
             return true;
     }
 }
+
+/**
+ * Returns the port a socket is bound to or -1 on failure
+ */
+int Socket::port_number() {
+    sockaddr_in addr;
+    socklen_t addr_len = sizeof( addr );
+    if ( getsockname( sock, ( struct sockaddr * )&addr, &addr_len ) == -1 )
+        return -1;
+    else
+        return ntohs( addr.sin_port );
+}
