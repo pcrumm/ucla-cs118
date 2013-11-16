@@ -9,14 +9,16 @@ CFLAGS = -g -Wall -Wextra -Werror
 all: server client
 
 SERVER_SOURCES = \
-	Server.cpp
+	Server.cpp \
+	RDTConnection.cpp
 SERVER_OBJECTS = $(subst .cpp,.o,$(SERVER_SOURCES))
 
 server: $(SERVER_OBJECTS)
 	$(CC) $(CFLAGS) -o $@ $(SERVER_OBJECTS)
 
 CLIENT_SOURCES = \
-	Client.cpp
+	Client.cpp \
+	RDTConnection.cpp
 CLIENT_OBJECTS = $(subst .cpp,.o,$(CLIENT_SOURCES))
 
 client: $(CLIENT_OBJECTS)
