@@ -70,7 +70,7 @@ private:
     int build_network_packet(rdt_packet_t &pkt, std::string const &data);
     bool broadcast_network_packet(rdt_packet_t const &pkt);
     bool read_network_packet(rdt_packet_t &pkt);
-    void drop_packet(std::string const &reason);
+    void drop_packet(rdt_packet_t &pkt, std::string const &reason);
 };
 
 #endif
