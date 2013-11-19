@@ -34,7 +34,7 @@ bool RDTConnection::connect( std::string const &afnet_address, int port, bool se
     // If we are establishing a brand new connection, a bind is still needed
     if (!is_listener) {
         if (!bind()) {
-            std::cout << "Failed to bind connection socket" << std::endl;
+            log_event("Failed to bind connection socket");
             return false;
         }
     }
@@ -47,7 +47,10 @@ bool RDTConnection::connect( std::string const &afnet_address, int port, bool se
         return false;
     }
 
-    std::cout << "Attempting to connect to " << afnet_address << ":" << port << "..." << std::endl;
+    std::stringstream ip_ss;
+    ip_ss << afnet_address << ":" << port;
+    std::string ip_str = ip_ss.str();
+    log_event("Attempting to connect to " + ip_str);
 
     // Set the socket timeout (inactivity) and bail if setting the option fails
     timeval timeout;
@@ -55,7 +58,7 @@ bool RDTConnection::connect( std::string const &afnet_address, int port, bool se
     timeout.tv_usec = RDT_TIMEOUT_USEC;
     if (setsockopt(sock_fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0) {
         close();
-        std::cout << "failed to set socket timeout\n";
+        log_event("failed to set socket timeout");
         return false;
     }
 
@@ -69,7 +72,7 @@ bool RDTConnection::connect( std::string const &afnet_address, int port, bool se
     // Bail on transmission errors
     if ( !broadcast_network_packet(pkt) ) {
         close();
-        std::cout << "SYN packet transmission failed\n";
+        log_event("SYN packet transmission failed");
         return false;
     }
 
@@ -82,7 +85,7 @@ bool RDTConnection::connect( std::string const &afnet_address, int port, bool se
 
     do {
         if (read_network_packet(pkt) && isSYNACK(pkt)) {
-            std::cout << "Connected to " << afnet_address << ":" << port << std::endl;
+            log_event("Connected to " + ip_str);
             return true; // Got the SYNACK, return success!
         }
         else if (errno == EWOULDBLOCK) {
@@ -100,7 +103,7 @@ bool RDTConnection::connect( std::string const &afnet_address, int port, bool se
 
     // Timed out
     close();
-    std::cout << "Connection attempt to " << afnet_address << ":" << port << " timed out" << std::endl;
+    log_event("Connection attempt to " + ip_str + " timed out");
     return false;
 }
 
@@ -141,7 +144,15 @@ void RDTConnection::close() {
 
 void RDTConnection::close(bool force_teardown) {
     // TODO: properly tear down connection
-    // TODO: log connection close
+
+    if (sock_fd != -1) {
+        std::stringstream ss;
+        char ip_addr[INET_ADDRSTRLEN];
+
+        inet_ntop(AF_INET, &remote_addr.sin_addr.s_addr, ip_addr, sizeof(ip_addr));
+        ss << "Closing connection to " << ip_addr << ":" << ntohs(remote_addr.sin_port);
+        log_event(ss.str());
+    }
 
     memset( &remote_addr, 0, sizeof( remote_addr ));
 
@@ -198,7 +209,9 @@ bool RDTConnection::accept() {
 
         if(isSYN(pkt)) {
             inet_ntop(AF_INET, &incoming_addr.sin_addr.s_addr, ip_addr, sizeof(ip_addr));
-            std::cout << "Connection request from " << ip_addr << ":" << pkt.header.src_port << "...\n";
+            std::stringstream ss;
+            ss << "Connection request from " << ip_addr << ":" << pkt.header.src_port;
+            log_event(ss.str());
             connected = connect(ip_addr, pkt.header.src_port, true);
         } else {
             drop_packet(pkt, "non-SYN packet received when awaiting incoming connections");
@@ -381,12 +394,15 @@ bool RDTConnection::read_network_packet(rdt_packet_t &pkt, bool verify_remote, s
  */
 void RDTConnection::drop_packet(rdt_packet_t &pkt, std::string const &reason) {
     memset(&pkt, 0, sizeof(pkt));
+    log_event(reason == "" ? "unknown error" : reason);
+}
 
+void RDTConnection::log_event(std::string const &msg) {
     time_t now;
     char date[32];
 
     time(&now);
     strftime( date, sizeof(date), "%D %T: ", localtime(&now));
 
-    std::cout << date << (reason == "" ? "unknown error" : reason) << std::endl;
+    std::cerr << date << msg << std::endl;
 }

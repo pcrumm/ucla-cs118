@@ -74,6 +74,8 @@ private:
     bool connect(std::string const &afnet_address, int port, bool sendSYNACK);
     bool bind(int port = 0);
     void close(bool force_teardown);
+
+    void log_event(std::string const &msg);
 };
 
 #endif
