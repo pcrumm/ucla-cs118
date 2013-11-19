@@ -1,11 +1,6 @@
 #ifndef RDTConn
 #define RDTConn
-
-#include <sys/socket.h> // Socky stuff
-#include <sys/time.h> // gettimeofday
 #include <netinet/in.h> // sockaddr_in
-#include <arpa/inet.h> // htonl, ntohl, etc.
-#include <unistd.h>
 #include <string> // std::string
 
 // We want to send one RDT segment per UDP packet and avoid IP fragmentation

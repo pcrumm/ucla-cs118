@@ -1,5 +1,9 @@
 #include "RDTConnection.h"
-#include <iostream> // std::string
+#include <sys/time.h> // gettimeofday
+#include <arpa/inet.h> // htonl, ntohl, etc.
+#include <unistd.h>
+#include <iostream> // std::cout
+#include <sstream> // std::stringstream
 
 RDTConnection::RDTConnection() : sock_fd( -1 ), is_listener( false ) {
     memset( &remote_addr, 0, sizeof( remote_addr ));
