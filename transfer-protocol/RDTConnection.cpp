@@ -222,13 +222,23 @@ bool RDTConnection::accept() {
 }
 
 bool RDTConnection::send_data( std::string const &data ) {
-    // TODO
+    // TODO: send data
+
+    // Place holder code
+    rdt_packet_t pkt;
+    build_network_packet(pkt, data);
+    broadcast_network_packet(pkt);
     return false;
 }
 
 bool RDTConnection::receive_data( std::string &data ) {
-    // TODO
-    data = "";
+    // TODO: read data
+
+    // Place holder code
+    rdt_packet_t pkt;
+    read_network_packet(pkt);
+    data = pkt.data;
+    data = data.substr(0, pkt.header.data_len);
     return false;
 }
 
@@ -284,9 +294,7 @@ bool RDTConnection::read_network_packet(rdt_packet_t &pkt, bool verify_remote, s
     sockaddr_in *recv_addr = ain ? ain : &default_addr;
     socklen_t recv_addr_len = sizeof(default_addr);
 
-    ssize_t len   = 0;
-    size_t offset = 0;
-    int max_read  = 0;
+    ssize_t len = 0;
     bool valid_header = false;
     bool valid_packet = false;
 
@@ -295,8 +303,9 @@ bool RDTConnection::read_network_packet(rdt_packet_t &pkt, bool verify_remote, s
     // is read from the UDP buffer so that we can get rid of the garbage data
     while( !valid_packet ) {
         while( !valid_header ) {
-            max_read = std::max(sizeof(pkt.header) - offset, 0ul);
-            len = recvfrom(sock_fd, (&pkt.header)+offset, max_read, 0, (sockaddr *)recv_addr, &recv_addr_len);
+            // Reading the header and payload in two reads seems to cause problems
+            // We peek at the header to avoid popping it out of the buffer
+            len = recvfrom(sock_fd, &pkt.header, sizeof(pkt.header), MSG_PEEK, (sockaddr *)recv_addr, &recv_addr_len);
 
             // Time out, let caller handle problem
             if (len == -1 && errno == EWOULDBLOCK) {
@@ -304,40 +313,36 @@ bool RDTConnection::read_network_packet(rdt_packet_t &pkt, bool verify_remote, s
                 return false;
             }
 
-            if (len > 0)
-                offset += len;
-
             // Keep reading until we get the expected size of a packet
-            if (offset < sizeof(pkt.header)) {
+            if (len < sizeof(pkt.header)) {
                 continue; // find header loop
             } else if (pkt.header.magic_num == RDT_MAGIC_NUM) {
                 // If the magic number is aligned we got a proper header
                 valid_header = true;
                 break;
             } else { // Misaligned packet, attempt to recover
+                int bytes_dropped = 0;
                 const int MAGIC_NUM = RDT_MAGIC_NUM;
                 char magicbuf[sizeof(pkt.header.magic_num)];
                 memcpy(&magicbuf, &MAGIC_NUM, sizeof(magicbuf));
 
                 // Check if magic number appears in the bytes we've read
                 // If so, move the data up to the start of the header
-                for (int i = 0; i < offset - sizeof(magicbuf); i++) {
+                for (int i = 0; i < len - sizeof(magicbuf); i++) {
                     if ( memcmp( (&pkt.header)+i, &magicbuf, sizeof(magicbuf) ) == 0 ) {
-                        offset -= i;
-                        memmove( &pkt.header, (&pkt.header)+i, offset );
+                        bytes_dropped -= i;
+                        memmove( &pkt.header, (&pkt.header)+i, len - bytes_dropped );
                         break; // for loop
                     }
                 }
 
                 std::stringstream ss;
-                ss << "misaligned packet: " << offset << " bytes dropped";
+                ss << "misaligned packet: " << bytes_dropped << " bytes dropped";
                 drop_packet(pkt, ss.str());
 
                 // Reset offset if no memory was moved and allow outer loop to keep reading
-                if (pkt.header.magic_num != RDT_MAGIC_NUM) {
-                    offset = 0;
+                if (pkt.header.magic_num != RDT_MAGIC_NUM)
                     valid_header = false;
-                }
             }
         }
 
@@ -346,8 +351,8 @@ bool RDTConnection::read_network_packet(rdt_packet_t &pkt, bool verify_remote, s
         // to return before the rest of the packet is received. In such a situation, treat
         // the packet as corrupted
         if (valid_header) {
-            max_read = (pkt.header.data_len < sizeof(pkt.data) ? pkt.header.data_len : sizeof(pkt.data));
-            len = recvfrom(sock_fd, &pkt.data, max_read, 0, NULL, NULL);
+            size_t max_read = std::min(sizeof(pkt), pkt.header.data_len + sizeof(pkt.header));
+            len = recvfrom(sock_fd, &pkt, max_read, 0, NULL, NULL);
 
             if (len == -1) {
                 if (errno == EWOULDBLOCK) {
