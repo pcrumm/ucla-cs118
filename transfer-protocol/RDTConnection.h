@@ -21,6 +21,7 @@
 #define FIN_MASK    1 << 0;
 
 #define RDT_MAGIC_NUM 0xCABBA6E5
+#define RDT_TIMEOUT_SEC 0
 #define RDT_TIMEOUT_USEC 500000 // 500ms
 
 class RDTConnection {
@@ -28,15 +29,18 @@ public:
     RDTConnection();
     virtual ~RDTConnection();
 
-    bool connect( std::string const &afnet_address, int port = 0 );
+    bool connect( std::string const &afnet_address, int port );
     void close();
     bool listen( int port );
-    RDTConnection accept();
+    bool accept();
 
     bool send_data( std::string const &data );
     bool receive_data( std::string &data );
 
+    int port_number();
+
 private:
+    bool is_listener;
     int sock_fd;
     sockaddr_in remote_addr;
     sockaddr_in local_addr;
@@ -69,8 +73,12 @@ private:
 
     int build_network_packet(rdt_packet_t &pkt, std::string const &data);
     bool broadcast_network_packet(rdt_packet_t const &pkt);
-    bool read_network_packet(rdt_packet_t &pkt);
+    bool read_network_packet(rdt_packet_t &pkt, bool verify_remote = true, sockaddr_in *ain = NULL);
     void drop_packet(rdt_packet_t &pkt, std::string const &reason);
+
+    bool connect(std::string const &afnet_address, int port, bool sendSYNACK);
+    bool bind(int port = 0);
+    void close(bool force_teardown);
 };
 
 #endif

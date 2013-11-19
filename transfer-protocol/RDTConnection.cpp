@@ -1,53 +1,57 @@
 #include "RDTConnection.h"
 #include <iostream> // std::string
 
-RDTConnection::RDTConnection() : sock_fd( -1 ) {
+RDTConnection::RDTConnection() : sock_fd( -1 ), is_listener( false ) {
     memset( &remote_addr, 0, sizeof( remote_addr ));
     memset( &local_addr, 0, sizeof( local_addr ));
 }
 
 RDTConnection::~RDTConnection() {
-    close();
+    close(true); // force teardown, object destroyed
 }
 
 /**
- * Creates a socket, binds it, and sends a SYN packet to the remote host
- * Blocks until an ACK is received or connection times out. Only establishes
- * a one way connection from local host to the remote host. read_network_packet()
- * is responsible for responding to any remote SYN requests.
+ * Public interface for establishing connections
+ */
+bool RDTConnection::connect( std::string const &afnet_address, int port ) {
+    return connect(afnet_address, port, false);
+}
+
+/**
+ * Sends a SYN packet to the remote host and blocks until an ACK is received or
+ * connection times out. Only establishes a one way connection from local host
+ * to the remote host. read_network_packet() is responsible for responding to any
+ * remote SYN requests.
  *
  * Returns true if local-to-remote connection established, false otherwise.
  */
-bool RDTConnection::connect( std::string const &afnet_address, int port ) {
-    close(); // Close existing connection if any
+bool RDTConnection::connect( std::string const &afnet_address, int port, bool sendSYNACK ) {
+    // Listeners have already bound a socket, simply try to connect to the remote
+    // If we are establishing a brand new connection, a bind is still needed
+    if (!is_listener) {
+        if (!bind()) {
+            std::cout << "Failed to bind connection socket" << std::endl;
+            return false;
+        }
+    }
 
-    local_addr.sin_family = AF_INET;
-    local_addr.sin_port = 0;
-    local_addr.sin_addr.s_addr = htonl(INADDR_ANY);
-
+    // Establish remote host info
     remote_addr.sin_family = AF_INET;
     remote_addr.sin_port = htons(port);
-
-    // Parse the IP address string
     if ( inet_pton(AF_INET, afnet_address.c_str(), (void *)&remote_addr.sin_addr.s_addr ) != 1 ) {
         close();
         return false;
     }
 
-    sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
-
-    // Bind socket so we can listen to the remote host
-    if (sock_fd == -1 || bind(sock_fd, (struct sockaddr*)&local_addr, sizeof(local_addr)) < 0) {
-        close();
-        return false;
-    }
+    std::cout << "Attempting to connect to " << afnet_address << ":" << port << "..." << std::endl;
 
     // Set the socket timeout (inactivity) and bail if setting the option fails
     timeval timeout;
-    timeout.tv_sec = 0;
+    timeout.tv_sec = RDT_TIMEOUT_SEC;
     timeout.tv_usec = RDT_TIMEOUT_USEC;
     if (setsockopt(sock_fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout)) < 0) {
         close();
+        std::cout << "failed to set socket timeout\n";
         return false;
     }
 
@@ -55,10 +59,13 @@ bool RDTConnection::connect( std::string const &afnet_address, int port ) {
     rdt_packet_t pkt;
     build_network_packet(pkt, "");
     setSYN(pkt);
+    if(sendSYNACK)
+        setSYNACK(pkt);
 
     // Bail on transmission errors
     if ( !broadcast_network_packet(pkt) ) {
         close();
+        std::cout << "SYN packet transmission failed\n";
         return false;
     }
 
@@ -66,15 +73,17 @@ bool RDTConnection::connect( std::string const &afnet_address, int port ) {
     // SYN packets sent by the remote host are replied by read_network_packet();
     timeval start, now;
     gettimeofday(&start, NULL);
-    int delta_sec = 0;
+    int delta_sec = RDT_TIMEOUT_SEC;
     int delta_usec = RDT_TIMEOUT_USEC;
 
     do {
-        rdt_packet_t recv_pkt;
-        if (read_network_packet(pkt) && isSYNACK(pkt))
+        if (read_network_packet(pkt) && isSYNACK(pkt)) {
+            std::cout << "Connected to " << afnet_address << ":" << port << std::endl;
             return true; // Got the SYNACK, return success!
-        else if (errno == EWOULDBLOCK)
+        }
+        else if (errno == EWOULDBLOCK) {
             break; // Socket timeout, bail
+        }
 
         // Timeout for getting an ACK
         // this is different from a socket timeout as receiving
@@ -87,27 +96,14 @@ bool RDTConnection::connect( std::string const &afnet_address, int port ) {
 
     // Timed out
     close();
+    std::cout << "Connection attempt to " << afnet_address << ":" << port << " timed out" << std::endl;
     return false;
 }
 
-void RDTConnection::close() {
-    // TODO: properly tear down connection
-    if (sock_fd != -1) {
-        ::close( sock_fd );
-    }
-
-    sock_fd = -1;
-    memset( &remote_addr, 0, sizeof( remote_addr ));
-    memset( &local_addr, 0, sizeof( local_addr ));
-}
-
 /**
- * Initializes a socket and listens for incoming connections
- * If object has an existing connection, it will be closed.
- *
- * Returns a bool indicating successful port binding
+ * Creates a system socket to send and receive packets
  */
-bool RDTConnection::listen( int port ) {
+bool RDTConnection::bind( int port ) {
     close(); // Close existing connection if any
 
     local_addr.sin_family = AF_INET;
@@ -115,22 +111,98 @@ bool RDTConnection::listen( int port ) {
     local_addr.sin_port = htons(port);
 
     sock_fd = socket(AF_INET, SOCK_DGRAM, 0);
-    if (sock_fd == -1) {
+
+    // Bind socket so we can receive incoming packets
+    if (sock_fd == -1 || ::bind(sock_fd, (struct sockaddr*)&local_addr, sizeof(local_addr)) < 0) {
         close();
         return false;
     }
 
-    if (bind(sock_fd, (struct sockaddr*)&local_addr, sizeof(local_addr)) < 0) {
-        close();
-        return false;
-    }
-
+    // Double check what port the system gave us
+    port = port_number();
+    local_addr.sin_port = htons(port);
     return true;
 }
 
-// RDTConnection RDTConnection::accept() {
-    // TODO
-// }
+/**
+ * Public interface for closing connections
+ *
+ * It will never force listeners to tear down their sockets, which makes
+ * it possible to simply close the current connection and continue to listen
+ * for additional connection requests
+ */
+void RDTConnection::close() {
+    close(false); // do not force listeners to teardown sockets
+}
+
+void RDTConnection::close(bool force_teardown) {
+    // TODO: properly tear down connection
+    // TODO: log connection close
+
+    memset( &remote_addr, 0, sizeof( remote_addr ));
+
+    // Teardown regular sockets or when listener is destroyed
+    if (force_teardown || !is_listener) {
+        if (sock_fd != -1)
+            ::close( sock_fd );
+
+        sock_fd = -1;
+        is_listener = false;
+        memset( &local_addr, 0, sizeof( local_addr ));
+    }
+
+    if (!force_teardown && is_listener) {
+        // Remove the socket timeout (inactivity) to allow blocking while waiting for connections
+        timeval timeout;
+        timeout.tv_sec = 0;
+        timeout.tv_usec = 0;
+        setsockopt(sock_fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout));
+    }
+}
+
+/**
+ * Establishes the connection object as a listener which can accept
+ * arbitrary connection requests
+ */
+bool RDTConnection::listen( int port ) {
+    close(true); // re-establsh listener
+    return is_listener = bind(port);
+}
+
+/**
+ * Accepts a remote connection. If successful, caller can begin writing and reading
+ * data from the object. Additional connection requests will be dropped until the
+ * current connection is closed.
+ *
+ * If the object is a listener, function will block until a successful connection
+ * is established. If it isn't a listener, function will immediately return false.
+ */
+bool RDTConnection::accept() {
+    bool connected = false;
+    char ip_addr[INET_ADDRSTRLEN];
+    rdt_packet_t pkt;
+    sockaddr_in incoming_addr;
+
+    // Only established listeners can accept connections
+    if (!is_listener)
+        return false;
+
+    while ( !connected ) {
+        memset(&incoming_addr, 0, sizeof(incoming_addr));
+        if (!read_network_packet(pkt, false, &incoming_addr))
+            continue;
+
+        if(isSYN(pkt)) {
+            inet_ntop(AF_INET, &incoming_addr.sin_addr.s_addr, ip_addr, sizeof(ip_addr));
+            std::cout << "Connection request from " << ip_addr << ":" << pkt.header.src_port << "...\n";
+            connected = connect(ip_addr, pkt.header.src_port, true);
+        } else {
+            drop_packet(pkt, "non-SYN packet received when awaiting incoming connections");
+        }
+    }
+
+    return connected;
+}
 
 bool RDTConnection::send_data( std::string const &data ) {
     // TODO
@@ -141,6 +213,18 @@ bool RDTConnection::receive_data( std::string &data ) {
     // TODO
     data = "";
     return false;
+}
+
+/**
+ * Returns the port a connection is bound to or -1 on failure
+ */
+int RDTConnection::port_number() {
+    sockaddr_in addr;
+    socklen_t addr_len = sizeof(addr);
+    if ( getsockname(sock_fd, (sockaddr *)&addr, &addr_len) == -1 )
+        return -1;
+    else
+        return ntohs( addr.sin_port );
 }
 
 /**
@@ -176,11 +260,12 @@ inline bool RDTConnection::broadcast_network_packet(rdt_packet_t const &pkt) {
  * a valid RDT packet. If no data is left (socket times out), the function will
  * return to its caller.
  */
-bool RDTConnection::read_network_packet(rdt_packet_t &pkt) {
+bool RDTConnection::read_network_packet(rdt_packet_t &pkt, bool verify_remote, sockaddr_in *ain) {
     memset(&pkt, 0, sizeof(pkt));
 
-    sockaddr_in recv_addr;
-    socklen_t recv_addr_len = sizeof(recv_addr);
+    sockaddr_in default_addr;
+    sockaddr_in *recv_addr = ain ? ain : &default_addr;
+    socklen_t recv_addr_len = sizeof(default_addr);
 
     ssize_t len   = 0;
     size_t offset = 0;
@@ -194,7 +279,7 @@ bool RDTConnection::read_network_packet(rdt_packet_t &pkt) {
     while( !valid_packet ) {
         while( !valid_header ) {
             max_read = std::max(sizeof(pkt.header) - offset, 0ul);
-            len = recvfrom(sock_fd, (&pkt.header)+offset, max_read, 0, (sockaddr *)&recv_addr, &recv_addr_len);
+            len = recvfrom(sock_fd, (&pkt.header)+offset, max_read, 0, (sockaddr *)recv_addr, &recv_addr_len);
 
             // Time out, let caller handle problem
             if (len == -1 && errno == EWOULDBLOCK) {
@@ -202,7 +287,8 @@ bool RDTConnection::read_network_packet(rdt_packet_t &pkt) {
                 return false;
             }
 
-            offset += len;
+            if (len > 0)
+                offset += len;
 
             // Keep reading until we get the expected size of a packet
             if (offset < sizeof(pkt.header)) {
@@ -213,7 +299,6 @@ bool RDTConnection::read_network_packet(rdt_packet_t &pkt) {
                 break;
             } else { // Misaligned packet, attempt to recover
                 const int MAGIC_NUM = RDT_MAGIC_NUM;
-                int mpos = 0;
                 char magicbuf[sizeof(pkt.header.magic_num)];
                 memcpy(&magicbuf, &MAGIC_NUM, sizeof(magicbuf));
 
@@ -258,8 +343,10 @@ bool RDTConnection::read_network_packet(rdt_packet_t &pkt) {
             } else if (len < max_read) {
                 drop_packet(pkt, "received packet was shorter than expected");
                 valid_header = false;
-            } else if ( recv_addr.sin_addr.s_addr != remote_addr.sin_addr.s_addr
-                    ||  recv_addr.sin_port        != remote_addr.sin_port
+            } else if ( verify_remote &&
+                        (       recv_addr->sin_addr.s_addr != remote_addr.sin_addr.s_addr
+                            ||  htons(pkt.header.src_port) != remote_addr.sin_port
+                        )
             ) {
                 drop_packet(pkt, "packet received from unexpected host");
                 valid_header = false;
@@ -272,7 +359,7 @@ bool RDTConnection::read_network_packet(rdt_packet_t &pkt) {
     if (valid_packet) {
         // If remote host we've already connected to sends a SYN packet at any point
         // (because, say, our prevoius SYNACK was dropped) SYNACK it immediately
-        if (isSYN(pkt)) {
+        if (isSYN(pkt) && verify_remote) {
             rdt_packet_t ack;
             build_network_packet(ack, "");
             setSYNACK(ack);
