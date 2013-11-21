@@ -1,4 +1,6 @@
 #include <iostream>
+#include <cstdlib>
+#include <signal.h>
 #include "RDTConnection.h"
 
 #define DEFAULT_PORT 9529
@@ -6,7 +8,7 @@
 RDTConnection *server = NULL;
 
 void sig_handler( int signal ) {
-    printf( "Caught signal %i, exiting\n", signal );
+    std::cout << "Caught signal " << signal << ", exiting" << std::endl;
 
     if(server) {
         delete server;
