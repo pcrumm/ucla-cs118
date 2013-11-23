@@ -10,6 +10,7 @@
 #define UDP_HEADER 8
 #define MSS MTU - IP_HEADER - UDP_HEADER // Max payload size for an actual segment
 
+#define FINACK_MASK 1 << 4; // Separate ACK for FIN to avoid confusion from ACK delays
 #define SYNACK_MASK 1 << 3; // Separate ACK for SYN to avoid confusion from ACK delays
 #define ACK_MASK    1 << 2;
 #define SYN_MASK    1 << 1;
@@ -18,6 +19,8 @@
 #define RDT_MAGIC_NUM 0xCABBA6E5
 #define RDT_TIMEOUT_SEC 0
 #define RDT_TIMEOUT_USEC 500000 // 500ms
+
+#define MAX_TIMEOUTS 3
 
 class RDTConnection {
 public:
@@ -36,6 +39,8 @@ public:
 
 private:
     bool is_listener;
+    bool listener_connected;
+    bool got_FIN;
     int sock_fd;
     sockaddr_in remote_addr;
     sockaddr_in local_addr;
@@ -56,11 +61,13 @@ private:
         char data[ MSS - sizeof(rdt_header_t) ];
     };
 
+    bool isFINACK(rdt_packet_t &pkt) { return pkt.header.flags & FINACK_MASK; }
     bool isSYNACK(rdt_packet_t &pkt) { return pkt.header.flags & SYNACK_MASK; }
     bool isACK(rdt_packet_t &pkt) { return pkt.header.flags & ACK_MASK; }
     bool isSYN(rdt_packet_t &pkt) { return pkt.header.flags & SYN_MASK; }
     bool isFIN(rdt_packet_t &pkt) { return pkt.header.flags & FIN_MASK; }
 
+    void setFINACK(rdt_packet_t &pkt) { pkt.header.flags |= FINACK_MASK; }
     void setSYNACK(rdt_packet_t &pkt) { pkt.header.flags |= SYNACK_MASK; }
     void setACK(rdt_packet_t &pkt) { pkt.header.flags |= ACK_MASK; }
     void setSYN(rdt_packet_t &pkt) { pkt.header.flags |= SYN_MASK; }

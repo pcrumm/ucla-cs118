@@ -7,7 +7,7 @@
 #include <iostream> // std::cout
 #include <sstream> // std::stringstream
 
-RDTConnection::RDTConnection() : sock_fd( -1 ), is_listener( false ) {
+RDTConnection::RDTConnection() : sock_fd( -1 ), is_listener( false ), got_FIN( false ), listener_connected( false ) {
     memset( &remote_addr, 0, sizeof( remote_addr ));
     memset( &local_addr, 0, sizeof( local_addr ));
 }
@@ -40,6 +40,8 @@ bool RDTConnection::connect( std::string const &afnet_address, int port, bool se
             return false;
         }
     }
+
+    got_FIN = false;
 
     // Establish remote host info
     remote_addr.sin_family = AF_INET;
@@ -145,15 +147,57 @@ void RDTConnection::close() {
 }
 
 void RDTConnection::close(bool force_teardown) {
-    // TODO: properly tear down connection
-
-    if (sock_fd != -1) {
+    // If a non connected listener tries to close the connection it will
+    // get stuck as non-connected listener sockets don't have a timeout
+    if ((!is_listener && sock_fd != -1) || (is_listener && listener_connected)) {
         std::stringstream ss;
         char ip_addr[INET_ADDRSTRLEN];
 
         inet_ntop(AF_INET, &remote_addr.sin_addr.s_addr, ip_addr, sizeof(ip_addr));
         ss << "Closing connection to " << ip_addr << ":" << ntohs(remote_addr.sin_port);
         log_event(ss.str());
+
+        int num_timeouts = 0;
+        bool got_ACK = false;
+        bool resend_pkt = true;
+        rdt_packet_t pkt;
+
+        // Wait for the remote host to acknowledge our FIN
+        while (!got_ACK && num_timeouts < MAX_TIMEOUTS) {
+            if (resend_pkt) {
+                build_network_packet(pkt, "");
+                setFIN(pkt);
+                broadcast_network_packet(pkt);
+                resend_pkt = false;
+            }
+
+            if (read_network_packet(pkt)) {
+                got_ACK = isFINACK(pkt);
+                got_FIN = got_FIN || isFIN(pkt);
+            } else if (errno == EWOULDBLOCK) {
+                resend_pkt = true;
+                num_timeouts++;
+            }
+        }
+
+        if (got_ACK) { // Successfully got a FINACK
+            num_timeouts = 0;
+            while (!got_FIN && num_timeouts < MAX_TIMEOUTS) {
+                if (read_network_packet(pkt))
+                    got_FIN = isFIN(pkt);
+                else if (errno == EWOULDBLOCK)
+                    num_timeouts++;
+            }
+        } else { // Number of tries exhausted, assume connection is gone
+            log_event("Timeout while waiting for FINACK, terminating connection");
+        }
+
+        if (!got_FIN) {
+            got_FIN = true;
+            log_event("Timeout while waiting for FIN, terminating connection");
+        } else {
+            log_event("Connection closed");
+        }
     }
 
     memset( &remote_addr, 0, sizeof( remote_addr ));
@@ -174,6 +218,8 @@ void RDTConnection::close(bool force_teardown) {
         timeout.tv_sec = 0;
         timeout.tv_usec = 0;
         setsockopt(sock_fd, SOL_SOCKET, SO_RCVTIMEO, (char *)&timeout, sizeof(timeout));
+
+        listener_connected = false;
     }
 }
 
@@ -195,7 +241,6 @@ bool RDTConnection::listen( int port ) {
  * is established. If it isn't a listener, function will immediately return false.
  */
 bool RDTConnection::accept() {
-    bool connected = false;
     char ip_addr[INET_ADDRSTRLEN];
     rdt_packet_t pkt;
     sockaddr_in incoming_addr;
@@ -203,8 +248,10 @@ bool RDTConnection::accept() {
     // Only established listeners can accept connections
     if (!is_listener)
         return false;
+    else
+        listener_connected = false;
 
-    while ( !connected ) {
+    while ( !listener_connected ) {
         memset(&incoming_addr, 0, sizeof(incoming_addr));
         if (!read_network_packet(pkt, false, &incoming_addr))
             continue;
@@ -214,13 +261,13 @@ bool RDTConnection::accept() {
             std::stringstream ss;
             ss << "Connection request from " << ip_addr << ":" << pkt.header.src_port;
             log_event(ss.str());
-            connected = connect(ip_addr, pkt.header.src_port, true);
+            listener_connected = connect(ip_addr, pkt.header.src_port, true);
         } else {
             drop_packet(pkt, "non-SYN packet received when awaiting incoming connections");
         }
     }
 
-    return connected;
+    return listener_connected;
 }
 
 bool RDTConnection::send_data( std::string const &data ) {
@@ -288,6 +335,9 @@ inline bool RDTConnection::broadcast_network_packet(rdt_packet_t const &pkt) {
  * Function will keep reading from the network until it finds (what it sees) as
  * a valid RDT packet. If no data is left (socket times out), the function will
  * return to its caller.
+ *
+ * Function will automatically SYNACK any SYN packets or FINACK any FIN packets. It is
+ * the caller's duty to note any incoming FIN packets and take the appropriate action.
  */
 bool RDTConnection::read_network_packet(rdt_packet_t &pkt, bool verify_remote, sockaddr_in *ain) {
     memset(&pkt, 0, sizeof(pkt));
@@ -299,6 +349,10 @@ bool RDTConnection::read_network_packet(rdt_packet_t &pkt, bool verify_remote, s
     ssize_t len = 0;
     bool valid_header = false;
     bool valid_packet = false;
+    bool valid_host   = false;
+
+    if (sock_fd == -1)
+        return false;
 
     // First we try to find a packet header from the UDP buffer
     // We reject packets from unexpected hosts after the *entire* packet
@@ -356,22 +410,21 @@ bool RDTConnection::read_network_packet(rdt_packet_t &pkt, bool verify_remote, s
             size_t max_read = std::min(sizeof(pkt), pkt.header.data_len + sizeof(pkt.header));
             len = recvfrom(sock_fd, &pkt, max_read, 0, NULL, NULL);
 
+            valid_host = recv_addr->sin_addr.s_addr == remote_addr.sin_addr.s_addr
+                        && htons(pkt.header.src_port) == remote_addr.sin_port;
+
             if (len == -1) {
                 if (errno == EWOULDBLOCK) {
-                    drop_packet(pkt, "socket timeout while receiving packet");
+                    log_event("socket timeout while receiving packet");
                     return false;
                 } else {
-                    drop_packet(pkt, "unknown transmission error");
+                    log_event("unknown transmission error");
                     valid_header = false;
                 }
             } else if (len < max_read) {
                 drop_packet(pkt, "received packet was shorter than expected");
                 valid_header = false;
-            } else if ( verify_remote &&
-                        (       recv_addr->sin_addr.s_addr != remote_addr.sin_addr.s_addr
-                            ||  htons(pkt.header.src_port) != remote_addr.sin_port
-                        )
-            ) {
+            } else if (verify_remote && !valid_host) {
                 drop_packet(pkt, "packet received from unexpected host");
                 valid_header = false;
             } else if (len == max_read) {
@@ -383,11 +436,18 @@ bool RDTConnection::read_network_packet(rdt_packet_t &pkt, bool verify_remote, s
     if (valid_packet) {
         // If remote host we've already connected to sends a SYN packet at any point
         // (because, say, our prevoius SYNACK was dropped) SYNACK it immediately
+        rdt_packet_t ack;
+        build_network_packet(ack, "");
+
         if (isSYN(pkt) && verify_remote) {
-            rdt_packet_t ack;
-            build_network_packet(ack, "");
             setSYNACK(ack);
             broadcast_network_packet(ack);
+            log_event("Received SYN packet");
+        } else if (valid_host && isFIN(pkt)) { // Always ignore FIN packets from unknown hosts
+            got_FIN = true;
+            setFINACK(ack);
+            broadcast_network_packet(ack);
+            log_event("Received FIN packet, remote host closed connection");
         }
 
         return true;
@@ -401,7 +461,7 @@ bool RDTConnection::read_network_packet(rdt_packet_t &pkt, bool verify_remote, s
  */
 void RDTConnection::drop_packet(rdt_packet_t &pkt, std::string const &reason) {
     memset(&pkt, 0, sizeof(pkt));
-    log_event(reason == "" ? "unknown error" : reason);
+    log_event("Dropped packet: " + (reason == "" ? "unknown error" : reason));
 }
 
 void RDTConnection::log_event(std::string const &msg) {
