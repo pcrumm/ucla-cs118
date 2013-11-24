@@ -4,7 +4,7 @@
 #include "RDTConnection.h"
 
 #define DEFAULT_PORT 9529
-#define WINDOW_SIZE 5
+#define WINDOW_SIZE 1024
 
 RDTConnection *server = NULL;
 
