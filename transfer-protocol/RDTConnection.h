@@ -19,8 +19,10 @@
 #define RDT_MAGIC_NUM 0xCABBA6E5
 #define RDT_TIMEOUT_SEC 0
 #define RDT_TIMEOUT_USEC 500000 // 500ms
+#define USEC_CONVERSION 1000000
 
 #define MAX_TIMEOUTS 3
+#define MAX_DUPLICATE_ACK 3
 
 class RDTConnection {
 public:
@@ -29,7 +31,7 @@ public:
 
     bool connect( std::string const &afnet_address, int port );
     void close();
-    bool listen( int port );
+    bool listen( int port, int w_size );
     bool accept();
 
     bool send_data( std::string const &data );
@@ -75,7 +77,7 @@ private:
     void setSYN(rdt_packet_t &pkt) { pkt.header.flags |= SYN_MASK; }
     void setFIN(rdt_packet_t &pkt) { pkt.header.flags |= FIN_MASK; }
 
-    int build_network_packet(rdt_packet_t &pkt, std::string const &data);
+    int  build_network_packet(rdt_packet_t &pkt, std::string const &data, size_t max_data_len = 0, size_t data_offset = 0);
     bool broadcast_network_packet(rdt_packet_t const &pkt);
     bool read_network_packet(rdt_packet_t &pkt, bool verify_remote = true, sockaddr_in *ain = NULL);
     void drop_packet(rdt_packet_t &pkt, std::string const &reason);
