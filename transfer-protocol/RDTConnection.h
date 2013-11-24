@@ -8,7 +8,7 @@
 #define MTU 1500 // ethernet MTU is defined as 1500 bytes
 #define IP_HEADER 20
 #define UDP_HEADER 8
-#define MSS MTU - IP_HEADER - UDP_HEADER // Max payload size for an actual segment
+#define MSS (MTU - IP_HEADER - UDP_HEADER) // Max payload size for an actual segment
 
 #define EOF_MASK    1 << 5; // Used to represent the last packet in a transmission
 #define FINACK_MASK 1 << 4; // Separate ACK for FIN to avoid confusion from ACK delays
