@@ -4,6 +4,7 @@
 #include "RDTConnection.h"
 
 #define DEFAULT_PORT 9529
+#define WINDOW_SIZE 5
 
 RDTConnection *server = NULL;
 
@@ -25,7 +26,7 @@ int main( int argc, char **argv ) {
 
     server = new RDTConnection();
 
-    if (!server->listen(DEFAULT_PORT)) {
+    if (!server->listen(DEFAULT_PORT, WINDOW_SIZE)) {
         std::cout << "server listen failed, aborting" << std::endl;
         exit(-1);
     } else {

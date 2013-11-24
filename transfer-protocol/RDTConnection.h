@@ -45,6 +45,8 @@ private:
     sockaddr_in remote_addr;
     sockaddr_in local_addr;
 
+    size_t window_size;
+
     struct rdt_header_t {
         uint32_t magic_num; // Used for packet alignment when reading from network
         uint16_t src_port;

@@ -227,8 +227,9 @@ void RDTConnection::close(bool force_teardown) {
  * Establishes the connection object as a listener which can accept
  * arbitrary connection requests
  */
-bool RDTConnection::listen( int port ) {
+bool RDTConnection::listen( int port, int w_size ) {
     close(true); // re-establsh listener
+    window_size = w_size;
     return is_listener = bind(port);
 }
 
