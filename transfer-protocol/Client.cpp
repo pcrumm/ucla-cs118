@@ -4,6 +4,7 @@
 #include "RDTConnection.h"
 
 #define DEFAULT_PORT 9529
+#define WINDOW_SIZE 1024
 
 RDTConnection *conn = NULL;
 
@@ -19,7 +20,7 @@ void sig_handler( int signal ) {
 }
 
 int main() {
-    conn = new RDTConnection();
+    conn = new RDTConnection(WINDOW_SIZE);
     if (!conn->connect("127.0.0.1", DEFAULT_PORT)) {
         std::cout << "Connection failed, aborting" << std::endl;
         exit(-1);

@@ -18,7 +18,7 @@
 #define FIN_MASK    1 << 0;
 
 #define RDT_MAGIC_NUM 0xCABBA6E5
-#define RDT_TIMEOUT_SEC 0
+#define RDT_TIMEOUT_SEC 1
 #define RDT_TIMEOUT_USEC 500000 // 500ms
 #define USEC_CONVERSION 1000000
 
@@ -27,12 +27,12 @@
 
 class RDTConnection {
 public:
-    RDTConnection();
+    RDTConnection(int w_size);
     virtual ~RDTConnection();
 
     bool connect( std::string const &afnet_address, int port );
     void close();
-    bool listen( int port, int w_size );
+    bool listen( int port );
     bool accept();
 
     bool send_data( std::string const &data );

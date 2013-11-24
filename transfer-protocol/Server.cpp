@@ -24,9 +24,9 @@ int main( int argc, char **argv ) {
     signal( SIGINT, sig_handler );
     signal( SIGTERM, sig_handler );
 
-    server = new RDTConnection();
+    server = new RDTConnection(WINDOW_SIZE);
 
-    if (!server->listen(DEFAULT_PORT, WINDOW_SIZE)) {
+    if (!server->listen(DEFAULT_PORT)) {
         std::cout << "server listen failed, aborting" << std::endl;
         exit(-1);
     } else {
