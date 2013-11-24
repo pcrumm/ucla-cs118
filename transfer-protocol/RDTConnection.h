@@ -10,6 +10,7 @@
 #define UDP_HEADER 8
 #define MSS MTU - IP_HEADER - UDP_HEADER // Max payload size for an actual segment
 
+#define EOF_MASK    1 << 5; // Used to represent the last packet in a transmission
 #define FINACK_MASK 1 << 4; // Separate ACK for FIN to avoid confusion from ACK delays
 #define SYNACK_MASK 1 << 3; // Separate ACK for SYN to avoid confusion from ACK delays
 #define ACK_MASK    1 << 2;
@@ -65,12 +66,14 @@ private:
         char data[ MSS - sizeof(rdt_header_t) ];
     };
 
+    bool isEOF(rdt_packet_t &pkt) { return pkt.header.flags & EOF_MASK; }
     bool isFINACK(rdt_packet_t &pkt) { return pkt.header.flags & FINACK_MASK; }
     bool isSYNACK(rdt_packet_t &pkt) { return pkt.header.flags & SYNACK_MASK; }
     bool isACK(rdt_packet_t &pkt) { return pkt.header.flags & ACK_MASK; }
     bool isSYN(rdt_packet_t &pkt) { return pkt.header.flags & SYN_MASK; }
     bool isFIN(rdt_packet_t &pkt) { return pkt.header.flags & FIN_MASK; }
 
+    void setEOF(rdt_packet_t &pkt) { pkt.header.flags |= EOF_MASK; }
     void setFINACK(rdt_packet_t &pkt) { pkt.header.flags |= FINACK_MASK; }
     void setSYNACK(rdt_packet_t &pkt) { pkt.header.flags |= SYNACK_MASK; }
     void setACK(rdt_packet_t &pkt) { pkt.header.flags |= ACK_MASK; }
