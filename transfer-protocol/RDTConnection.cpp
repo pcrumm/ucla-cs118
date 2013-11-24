@@ -6,8 +6,10 @@
 #include <cerrno> // errno
 #include <iostream> // std::cout
 #include <sstream> // std::stringstream
+#include <math.h> // ceil
+#define round(x) ((x)>=0?(long)((x)+0.5):(long)((x)-0.5))
 
-RDTConnection::RDTConnection() : sock_fd( -1 ), is_listener( false ), got_FIN( false ), listener_connected( false ) {
+RDTConnection::RDTConnection(int w_size) : window_size(w_size), sock_fd( -1 ), is_listener( false ), got_FIN( false ), listener_connected( false ) {
     memset( &remote_addr, 0, sizeof( remote_addr ));
     memset( &local_addr, 0, sizeof( local_addr ));
 }
@@ -227,9 +229,8 @@ void RDTConnection::close(bool force_teardown) {
  * Establishes the connection object as a listener which can accept
  * arbitrary connection requests
  */
-bool RDTConnection::listen( int port, int w_size ) {
+bool RDTConnection::listen( int port ) {
     close(true); // re-establsh listener
-    window_size = w_size;
     return is_listener = bind(port);
 }
 
@@ -272,24 +273,195 @@ bool RDTConnection::accept() {
 }
 
 bool RDTConnection::send_data( std::string const &data ) {
-    // TODO: send data
+    // First, compute the number of windows we need, then create a little structure 
+    // for storing pertinent information.
+    size_t necessary_windows = (window_size / MSS) + 1;
+    size_t current_window = 0;
 
-    // Place holder code
+    struct connection_window {
+        bool is_acked;          // Used to track if the data in this window was acknowledged.
+        size_t seq_num;         // The sequence number for this particular data item.
+        clock_t sent_on_clock;  // The clock cycle the data was sent on. Used for computing timeout.
+    };
+
+    struct connection_window *windows = (struct connection_window*)malloc(sizeof(struct connection_window) * necessary_windows);
+
+    // Configure the default settings of the struct
+    for (int i = 0; i < necessary_windows; i++) {
+        windows[i].is_acked = true;
+        windows[i].seq_num = 0;
+        windows[i].sent_on_clock = 0;
+    }
+
+    size_t current_unacknowledged_bytes = 0;
+    size_t total_acknowledged_bytes = 0;
+    size_t last_ack = 0;
+
+    size_t data_length = data.length();
+
     rdt_packet_t pkt;
-    build_network_packet(pkt, data);
-    broadcast_network_packet(pkt);
-    return false;
+    size_t current_packet_size;
+    size_t current_packet_max_size;
+
+    while (true) {
+        // If everything is acknowledged, we're done!
+        if (total_acknowledged_bytes >= data_length && total_acknowledged_bytes != 0 && data_length != 0)
+            return true;
+
+        /**
+         * To simplify things, we do this asynchronously. We first send every segment
+         * the window can hold. Once we've filled the window size, we start reading.
+         * We take care to not transmit over an unACKED window.
+         */
+        while (current_unacknowledged_bytes <= window_size && windows[current_window].is_acked) {
+            // We need to take care to not try to send any more data than the window will allow.
+            current_packet_max_size = std::min((size_t)window_size - current_unacknowledged_bytes, (size_t)MSS);
+            current_packet_size = build_network_packet(pkt, data, current_packet_max_size, total_acknowledged_bytes + current_unacknowledged_bytes);
+            current_unacknowledged_bytes += current_packet_size;
+
+            // We also need to set some clerical data for the packet--namely, the sequence number.
+            // The sequence number represents the numerical ID of the /last/ byte of data in the packet.
+            pkt.header.seq_num = total_acknowledged_bytes + current_unacknowledged_bytes;
+            windows[current_window].is_acked = false;
+            windows[current_window].seq_num = pkt.header.seq_num;
+            windows[current_window].sent_on_clock = clock();
+
+            if (current_unacknowledged_bytes >= data_length) {
+                setEOF(pkt);
+                log_event("Prepared EOF packet for transmission.");
+            }
+
+            // Advance the window
+            current_window = (current_window + 1) % necessary_windows;
+
+            std::stringstream ss;
+            ss << "Preparing to transmit packet with SEQ " << pkt.header.seq_num << " and payload " << current_packet_size;
+            ss << " - Current window has " << current_unacknowledged_bytes;
+            log_event(ss.str());
+
+            broadcast_network_packet(pkt);
+        }
+
+        /**
+         * Now that we've broken out of here, we've either sent enough data, or ran out of windows.
+         * To handle this, we first see if any packets have timed out in the window. If they have,
+         * then we reset to that packet and begin resending. If not, we start checking for ACKs.
+         */
+        for (int i = 0; i < necessary_windows; i++) {
+            if (!windows[i].is_acked && (((clock() - windows[i].sent_on_clock) / CLOCKS_PER_SEC) * USEC_CONVERSION > RDT_TIMEOUT_USEC)) {
+                // The packet has timed out. Resend it, and everything after it. To do this, set the
+                // current_unacknowledged_bytes to empty, and make sure every packet after is marked
+                // as acked so we can write over it.
+                current_unacknowledged_bytes = 0;
+
+                for (int j = i + 1; j < necessary_windows; j++)
+                    windows[j].is_acked = true;
+
+                std::stringstream ss;
+                ss << "SEQ NUM " << windows[i].seq_num << " has timed out. Resend!";
+                log_event(ss.str());
+                break;
+            }
+        }
+
+        /**
+         * We've sent everything, and nothing has timed out, so let's hunt for an ACK. We're using cumilative ACKS--
+         * this means that we assume the client will only ACK bytes it has received. If we receive an ACK, we mark
+         * every sequence number less than it is as sent.
+         */
+        if (read_network_packet(pkt)) {
+            if (pkt.header.ack_num == 0) {
+                drop_packet(pkt, "expected ACK and received non-ACK packet.");
+            } else {
+                std::stringstream ss;
+                ss << "Received ACK " << pkt.header.ack_num;
+                log_event(ss.str());
+
+                if (pkt.header.ack_num > current_unacknowledged_bytes + total_acknowledged_bytes) {
+                    drop_packet(pkt, "received garbage ACK value");
+                    continue;
+                }
+
+                if (pkt.header.ack_num < last_ack) {
+                    drop_packet(pkt, "discarding duplicate ACK");
+                } else {
+                    for (int i = 0; i < necessary_windows; i++) {
+                        if (!windows[i].is_acked && windows[i].seq_num <= pkt.header.ack_num) {
+                            windows[i].is_acked = true;
+
+                            std::stringstream ss;
+                            ss << "Marking " << pkt.header.ack_num << " as ACKED.";
+                            log_event(ss.str());
+                        }
+                    }
+                    total_acknowledged_bytes = pkt.header.ack_num;
+                    current_unacknowledged_bytes = pkt.header.ack_num - last_ack;
+                    last_ack = pkt.header.ack_num;
+                }
+            }
+        }
+        else {
+            // @todo handle a timeout as necessary
+        }
+    }
 }
 
 bool RDTConnection::receive_data( std::string &data ) {
-    // TODO: read data
-
-    // Place holder code
     rdt_packet_t pkt;
-    read_network_packet(pkt);
-    data = pkt.data;
-    data = data.substr(0, pkt.header.data_len);
-    return false;
+    rdt_packet_t response_pkt;
+    uint16_t timeout_count = 0;
+    size_t total_bytes_received = 0;
+    std::string empty;
+    while (true) {
+        if (read_network_packet(pkt)) {
+            if (pkt.header.seq_num < total_bytes_received) {
+                drop_packet(pkt, "duplicate packet received");
+                continue;
+            }
+            else if ((int)(pkt.header.seq_num - MSS) > (int)total_bytes_received) {
+                std::stringstream ss;
+                ss << "packet SEQ num " << pkt.header.seq_num << " out of desired range " << total_bytes_received << "+" << MSS;
+                drop_packet(pkt, ss.str());
+                continue;
+            }
+
+            // If the above checks pass, this is a valid packet.
+            const std::string packet_data = pkt.data;
+            data.append(packet_data);
+
+            total_bytes_received += pkt.header.data_len;
+
+            // Now send an ACK
+            build_network_packet(response_pkt, empty);
+
+            std::stringstream ss;
+            ss << "ACK " << total_bytes_received;
+            log_event(ss.str());
+
+            response_pkt.header.ack_num = total_bytes_received;
+            broadcast_network_packet(response_pkt);
+
+            if (isEOF(pkt)) {
+                log_event("Received EOF packet.");
+                return true;
+            }
+
+        } else {
+            timeout_count++;
+
+            std::stringstream ss;
+            ss << "Read timeout. Set timeout count to " << timeout_count;
+            log_event(ss.str());
+
+            if (timeout_count == MAX_TIMEOUTS) {
+                std::stringstream ss;
+                ss << "Timeout limit " << MAX_TIMEOUTS << " exceeded. Giving up.";
+                log_event(ss.str());
+
+                return false;
+            }
+        }
+    }
 }
 
 /**
@@ -308,7 +480,7 @@ int RDTConnection::port_number() {
  * Initializes a network packet with as much specified data as the packet can hold
  * Returns the amount of data bytes placed into the packet
  */
-inline int RDTConnection::build_network_packet(rdt_packet_t &pkt, std::string const &data) {
+inline int RDTConnection::build_network_packet(rdt_packet_t &pkt, std::string const &data, size_t max_data_len, size_t data_offset) {
     memset((void *)&pkt, 0, sizeof(rdt_packet_t));
 
     pkt.header.magic_num = RDT_MAGIC_NUM;
@@ -319,7 +491,16 @@ inline int RDTConnection::build_network_packet(rdt_packet_t &pkt, std::string co
     pkt.header.data_len  = std::min(sizeof(pkt.data), data.size());
     pkt.header.flags     = 0;
 
-    memcpy(&pkt.data, data.c_str(), pkt.header.data_len);
+    // First, ensure the offset is valid
+    if (data_offset > strlen(data.c_str()))
+        return 0;
+
+    // Next, compute the correct length based on any caller limitations.
+    pkt.header.data_len = (max_data_len == 0) ?
+        pkt.header.data_len :
+        std::min((uint16_t)max_data_len, (uint16_t)pkt.header.data_len);
+
+    memcpy(&pkt.data, data.c_str() + data_offset, pkt.header.data_len);
     return pkt.header.data_len;
 }
 
