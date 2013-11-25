@@ -305,8 +305,10 @@ bool RDTConnection::send_data( std::string const &data ) {
 
     while (true) {
         // If everything is acknowledged, we're done!
-        if (total_acknowledged_bytes >= data_length && total_acknowledged_bytes != 0 && data_length != 0)
+        if (total_acknowledged_bytes >= data_length && total_acknowledged_bytes != 0 && data_length != 0) {
+            log_event("Transmission complete.");
             return true;
+        }
 
         /**
          * To simplify things, we do this asynchronously. We first send every segment
@@ -336,7 +338,7 @@ bool RDTConnection::send_data( std::string const &data ) {
 
             std::stringstream ss;
             ss << "Preparing to transmit packet with SEQ " << pkt.header.seq_num << " and payload " << current_packet_size;
-            ss << " - Current window has " << current_unacknowledged_bytes;
+            ss << " - Current window has " << current_unacknowledged_bytes << " of " << window_size;
             log_event(ss.str());
 
             broadcast_network_packet(pkt);
@@ -348,7 +350,7 @@ bool RDTConnection::send_data( std::string const &data ) {
          * then we reset to that packet and begin resending. If not, we start checking for ACKs.
          */
         for (int i = 0; i < necessary_windows; i++) {
-            if (!windows[i].is_acked && (((clock() - windows[i].sent_on_clock) / CLOCKS_PER_SEC) * USEC_CONVERSION > RDT_TIMEOUT_USEC)) {
+            if (!windows[i].is_acked && (((clock() * USEC_CONVERSION - windows[i].sent_on_clock * USEC_CONVERSION) / CLOCKS_PER_SEC) > RDT_TIMEOUT_USEC)) {
                 // The packet has timed out. Resend it, and everything after it. To do this, set the
                 // current_unacknowledged_bytes to empty, and make sure every packet after is marked
                 // as acked so we can write over it.
@@ -378,7 +380,9 @@ bool RDTConnection::send_data( std::string const &data ) {
                 log_event(ss.str());
 
                 if (pkt.header.ack_num > current_unacknowledged_bytes + total_acknowledged_bytes) {
-                    drop_packet(pkt, "received garbage ACK value");
+                    std::stringstream ss;
+                    ss << "received garbage ACK value. god " << pkt.header.ack_num << ", anticipated " << current_unacknowledged_bytes << "+" << total_acknowledged_bytes;
+                    drop_packet(pkt, ss.str());
                     continue;
                 }
 
@@ -435,10 +439,10 @@ bool RDTConnection::receive_data( std::string &data ) {
             build_network_packet(response_pkt, empty);
 
             std::stringstream ss;
-            ss << "ACK " << total_bytes_received;
+            ss << "ACK " << pkt.header.seq_num;
             log_event(ss.str());
 
-            response_pkt.header.ack_num = total_bytes_received;
+            response_pkt.header.ack_num = pkt.header.seq_num;
             broadcast_network_packet(response_pkt);
 
             if (isEOF(pkt)) {
