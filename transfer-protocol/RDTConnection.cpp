@@ -371,7 +371,7 @@ bool RDTConnection::send_data( std::string const &data ) {
          * every sequence number less than it is as sent.
          */
         if (read_network_packet(pkt)) {
-            if (pkt.header.ack_num == 0) {
+            if (!isACK(pkt)) {
                 drop_packet(pkt, "expected ACK and received non-ACK packet.");
             } else {
                 std::stringstream ss;
@@ -414,7 +414,6 @@ bool RDTConnection::receive_data( std::string &data ) {
     rdt_packet_t response_pkt;
     uint16_t timeout_count = 0;
     size_t total_bytes_received = 0;
-    std::string empty;
     while (true) {
         if (read_network_packet(pkt)) {
             if (pkt.header.seq_num < total_bytes_received) {
@@ -435,13 +434,14 @@ bool RDTConnection::receive_data( std::string &data ) {
             total_bytes_received += pkt.header.data_len;
 
             // Now send an ACK
-            build_network_packet(response_pkt, empty);
+            build_network_packet(response_pkt, "");
 
             std::stringstream ss;
             ss << "ACK " << pkt.header.seq_num;
             log_event(ss.str());
 
             response_pkt.header.ack_num = pkt.header.seq_num;
+            setACK(response_pkt);
             broadcast_network_packet(response_pkt);
 
             if (isEOF(pkt)) {
