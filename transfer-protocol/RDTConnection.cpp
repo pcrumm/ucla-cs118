@@ -329,7 +329,7 @@ bool RDTConnection::send_data( std::string const &data ) {
             windows[current_window].seq_num = pkt.header.seq_num;
             windows[current_window].sent_on_clock = clock();
 
-            if (current_unacknowledged_bytes >= data_length) {
+            if ((current_unacknowledged_bytes + total_acknowledged_bytes) >= data_length) {
                 setEOF(pkt);
                 log_event("Prepared EOF packet for transmission.");
             }
