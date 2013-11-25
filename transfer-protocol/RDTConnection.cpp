@@ -315,7 +315,7 @@ bool RDTConnection::send_data( std::string const &data ) {
          * the window can hold. Once we've filled the window size, we start reading.
          * We take care to not transmit over an unACKED window.
          */
-        while (current_unacknowledged_bytes <= window_size && windows[current_window].is_acked) {
+        while (current_unacknowledged_bytes < window_size && windows[current_window].is_acked) {
             // We need to take care to not try to send any more data than the window will allow.
             current_packet_max_size = std::min((size_t)window_size - current_unacknowledged_bytes, (size_t)MSS);
             current_packet_size = build_network_packet(pkt, data, current_packet_max_size, total_acknowledged_bytes + current_unacknowledged_bytes);
@@ -340,7 +340,6 @@ bool RDTConnection::send_data( std::string const &data ) {
             ss << "Preparing to transmit packet with SEQ " << pkt.header.seq_num << " and payload " << current_packet_size;
             ss << " - Current window has " << current_unacknowledged_bytes << " of " << window_size;
             log_event(ss.str());
-
             broadcast_network_packet(pkt);
         }
 
@@ -399,7 +398,7 @@ bool RDTConnection::send_data( std::string const &data ) {
                         }
                     }
                     total_acknowledged_bytes = pkt.header.ack_num;
-                    current_unacknowledged_bytes = pkt.header.ack_num - last_ack;
+                    current_unacknowledged_bytes -= (pkt.header.ack_num - last_ack);
                     last_ack = pkt.header.ack_num;
                 }
             }
@@ -504,7 +503,7 @@ inline int RDTConnection::build_network_packet(rdt_packet_t &pkt, std::string co
         pkt.header.data_len :
         std::min((uint16_t)max_data_len, (uint16_t)pkt.header.data_len);
 
-    memcpy(&pkt.data, data.c_str() + data_offset, pkt.header.data_len);
+    memcpy(&pkt.data, (data.substr(data_offset)).c_str(), pkt.header.data_len);
     return pkt.header.data_len;
 }
 
