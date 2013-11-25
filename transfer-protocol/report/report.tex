@@ -19,6 +19,7 @@
 \section{Implementation Details}
 
 \section{Implementation Difficulties}
+We did not find any major difficulty in the implementation of the project. The primary difficulty encountered concerned the alignment of SEQ and ACK numbers--the math must be identical for the proper packet to be acknowledged. We initially attempted to use a \emph{uint16\_t} to store these numbers, but ran into overflow issues. We initially attempted to discern between an incorrect SEQ or ACK number and an overflow, however, after some time, we found this to be very tricky to get right. Instead, we opted to raise the size of these integers--to \emph{uint32\_t}--so that this is now a non-issue.
 
 
 \end{document}
