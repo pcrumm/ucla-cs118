@@ -2,6 +2,7 @@
 #include <sys/time.h> // gettimeofday
 #include <arpa/inet.h> // htonl, ntohl, etc.
 #include <unistd.h>
+#include <cstdlib> // malloc etc.
 #include <cstring> // memset, memcpy, etc.
 #include <cerrno> // errno
 #include <iostream> // std::cout
