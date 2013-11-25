@@ -44,11 +44,14 @@ int main( int argc, char **argv ) {
         // good chars are between 32 and 126
         int num_garbage_chars = 2000;
         char test_data[num_garbage_chars];
-        for (int i = 0; i < num_garbage_chars - 1; i++) {
-            test_data[i] = (i % (126 - 32)) + 32;
+        for (int j = 0; j < 1024; j++) {
+            for (int i = 0; i < num_garbage_chars - 1; i++) {
+                test_data[i] = (i % (126 - 32)) + 32;
+            }
+            server_reply.append(test_data);
         }
 
-        server_reply.append(test_data);
+        std::cout << "Sending data with length " << server_reply.length() << std::endl;
 
         server->send_data(server_reply);
         std::cout << "Remote host said: \"" << remote_msg << "\"" << std::endl;

@@ -31,6 +31,6 @@ int main() {
     conn->receive_data(server_msg);
     conn->close();
 
-    std::cout << "Server said: \"" << server_msg << "\"" << std::endl;
+    std::cout << "Server sent response with length \"" << server_msg.length() << "\"" << std::endl;
     return 0;
 }
