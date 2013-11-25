@@ -54,8 +54,8 @@ private:
         uint32_t magic_num; // Used for packet alignment when reading from network
         uint16_t src_port;
         uint16_t dst_port;
-        uint16_t seq_num;
-        uint16_t ack_num;
+        uint32_t seq_num;
+        uint32_t ack_num;
         uint16_t data_len;
         uint16_t flags;
     };
