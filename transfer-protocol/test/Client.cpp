@@ -1,7 +1,7 @@
 #include <iostream>
 #include <cstdlib>
 #include <signal.h>
-#include "RDTConnection.h"
+#include "../RDTConnection.h"
 
 #define DEFAULT_PORT 9529
 #define WINDOW_SIZE 1024

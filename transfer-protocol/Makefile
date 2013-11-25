@@ -6,23 +6,41 @@
 CC = g++
 CFLAGS = -g -Wall -Wextra -Werror
 
-all: server client
+all: sender receiver
 
-SERVER_SOURCES = \
-	Server.cpp \
+test: test_client test_server
+
+SENDER_SOURCES = \
+	Sender.cpp \
 	RDTConnection.cpp
-SERVER_OBJECTS = $(subst .cpp,.o,$(SERVER_SOURCES))
+SENDER_OBJECTS = $(subst .cpp,.o,$(SENDER_SOURCES))
 
-server: $(SERVER_OBJECTS)
-	$(CC) $(CFLAGS) -o $@ $(SERVER_OBJECTS)
+sender: $(SENDER_OBJECTS)
+	$(CC) $(CFLAGS) -o $@ $(SENDER_OBJECTS)
 
-CLIENT_SOURCES = \
-	Client.cpp \
+RECEIVER_SOURCES = \
+	Receiver.cpp \
 	RDTConnection.cpp
-CLIENT_OBJECTS = $(subst .cpp,.o,$(CLIENT_SOURCES))
+RECEIVER_OBJECTS = $(subst .cpp,.o,$(RECEIVER_SOURCES))
 
-client: $(CLIENT_OBJECTS)
-	$(CC) $(CFLAGS) -o $@ $(CLIENT_OBJECTS)
+receiver: $(RECEIVER_OBJECTS)
+	$(CC) $(CFLAGS) -o $@ $(RECEIVER_OBJECTS)
+
+TEST_CLIENT_SOURCES = \
+	test/Client.cpp \
+	RDTConnection.cpp
+TEST_CLIENT_OBJECTS = $(subst .cpp,.o,$(TEST_CLIENT_SOURCES))
+
+test_client: $(TEST_CLIENT_OBJECTS)
+	$(CC) $(CFLAGS) -o $@ $(TEST_CLIENT_OBJECTS)
+
+TEST_SERVER_SOURCES = \
+	test/Server.cpp \
+	RDTConnection.cpp
+TEST_SERVER_OBJECTS = $(subst .cpp,.o,$(TEST_SERVER_SOURCES))
+
+test_server: $(TEST_SERVER_OBJECTS)
+	$(CC) $(CFLAGS) -o $@ $(TEST_SERVER_OBJECTS)
 
 clean:
-	rm -fr *.o *~ *.bak *.tar.gz core *.core *.tmp server client
+	rm -fr *.o *~ *.bak *.tar.gz core *.core *.tmp sender receiver test_client test_server
