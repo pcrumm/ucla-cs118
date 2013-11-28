@@ -10,6 +10,7 @@
 #define UDP_HEADER 8
 #define MSS (MTU - IP_HEADER - UDP_HEADER) // Max payload size for an actual segment
 
+#define EOFACK_MASK 1 << 6; // Used to avoid simulated network errors on final ACKs to avoid synchronization issues
 #define EOF_MASK    1 << 5; // Used to represent the last packet in a transmission
 #define FINACK_MASK 1 << 4; // Separate ACK for FIN to avoid confusion from ACK delays
 #define SYNACK_MASK 1 << 3; // Separate ACK for SYN to avoid confusion from ACK delays
@@ -18,11 +19,11 @@
 #define FIN_MASK    1 << 0;
 
 #define RDT_MAGIC_NUM 0xCABBA6E5
-#define RDT_TIMEOUT_SEC 1
+#define RDT_TIMEOUT_SEC 0
 #define RDT_TIMEOUT_USEC 500000 // 500ms
 #define USEC_CONVERSION 1000000
 
-#define MAX_TIMEOUTS 3
+#define MAX_TIMEOUTS 5
 #define MAX_DUPLICATE_ACK 3
 
 class RDTConnection {
@@ -69,6 +70,7 @@ private:
         char data[ MSS - sizeof(rdt_header_t) ];
     };
 
+    bool isEOFACK(rdt_packet_t &pkt) { return pkt.header.flags & EOFACK_MASK; }
     bool isEOF(rdt_packet_t &pkt) { return pkt.header.flags & EOF_MASK; }
     bool isFINACK(rdt_packet_t &pkt) { return pkt.header.flags & FINACK_MASK; }
     bool isSYNACK(rdt_packet_t &pkt) { return pkt.header.flags & SYNACK_MASK; }
@@ -76,6 +78,7 @@ private:
     bool isSYN(rdt_packet_t &pkt) { return pkt.header.flags & SYN_MASK; }
     bool isFIN(rdt_packet_t &pkt) { return pkt.header.flags & FIN_MASK; }
 
+    void setEOFACK(rdt_packet_t &pkt) { pkt.header.flags |= EOFACK_MASK; }
     void setEOF(rdt_packet_t &pkt) { pkt.header.flags |= EOF_MASK; }
     void setFINACK(rdt_packet_t &pkt) { pkt.header.flags |= FINACK_MASK; }
     void setSYNACK(rdt_packet_t &pkt) { pkt.header.flags |= SYNACK_MASK; }

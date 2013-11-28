@@ -400,7 +400,6 @@ bool RDTConnection::send_data( std::string const &data ) {
          * every sequence number less than it is as sent.
          */
         if (read_network_packet(pkt)) {
-            timeout_count = 0;
             if (isFIN(pkt)) {
                 log_event("Send data interrupted: remote closed the connection");
                 close();
@@ -456,13 +455,10 @@ bool RDTConnection::receive_data( std::string &data ) {
     uint16_t timeout_count = 0;
     size_t total_bytes_received = 0;
     data = "";
+    bool got_EOF = false;
     while (true) {
         if (read_network_packet(pkt)) {
-            if (isFIN(pkt)) {
-                log_event("Receive data interrupted: remote closed the connection");
-                close();
-                return false;
-            } else if (pkt.header.seq_num < total_bytes_received) {
+            if (pkt.header.seq_num < total_bytes_received) {
                 drop_packet(pkt, "duplicate packet received");
                 continue;
             }
@@ -489,13 +485,25 @@ bool RDTConnection::receive_data( std::string &data ) {
 
             response_pkt.header.ack_num = pkt.header.seq_num;
             setACK(response_pkt);
+
+            if (isEOF(pkt))
+                setEOFACK(response_pkt);
+
             broadcast_network_packet(response_pkt);
 
             if (isEOF(pkt)) {
-                log_event("Received EOF packet.");
-                return true;
+                log_event("Received EOF packet, transmission complete.");
+                got_EOF = true;
             }
 
+            if (isFIN(pkt)) {
+                log_event("Receive data interrupted: remote closed the connection");
+                close();
+            }
+
+            if (isEOF(pkt) || isFIN(pkt)) {
+                return got_EOF;
+            }
         } else {
             timeout_count++;
 
@@ -661,13 +669,15 @@ bool RDTConnection::read_network_packet(rdt_packet_t &pkt, bool verify_remote, s
             } else if (verify_remote && !valid_host) {
                 drop_packet(pkt, "packet received from unexpected host");
                 valid_header = false;
-            } else if ( random() % 100 < prob_loss ) {
+            } else if ( !isEOFACK(pkt) && (random() % 100 < prob_loss) ) {
                 // Simulate network packet loss
+                // Do not apply this on EOFACK packets to avoid synchronization issues
                 drop_packet(pkt, "(simulated) socket timeout while receiving packet");
                 valid_packet = false;
                 errno = EWOULDBLOCK;
-            } else if ( random() % 100 < prob_corrupt ) {
+            } else if ( !isEOFACK(pkt) && (random() % 100 < prob_corrupt) ) {
                 // Simulate packet corruption
+                // Do not apply this on EOFACK packets to avoid synchronization issues
                 drop_packet(pkt, "packet corrupted");
                 valid_packet = false;
             } else if (len == max_read) {
