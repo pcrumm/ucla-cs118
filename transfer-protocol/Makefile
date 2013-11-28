@@ -44,3 +44,4 @@ test_server: $(TEST_SERVER_OBJECTS)
 
 clean:
 	rm -fr *.o *~ *.bak *.tar.gz core *.core *.tmp sender receiver test_client test_server
+	rm -fr test/*.o test/*~ test/*.bak test/*.tar.gz test/core test/*.core test/*.tmp

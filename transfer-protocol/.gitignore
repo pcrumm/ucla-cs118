@@ -1,3 +1,5 @@
-server
-client
+test_server
+test_client
+sender
+receiver
 *.o
