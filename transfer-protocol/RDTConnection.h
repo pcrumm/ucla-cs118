@@ -27,7 +27,7 @@
 
 class RDTConnection {
 public:
-    RDTConnection(int w_size);
+    RDTConnection(int w_size, double ploss = 0, double pcorrupt = 0);
     virtual ~RDTConnection();
 
     bool connect( std::string const &afnet_address, int port );
@@ -48,7 +48,10 @@ private:
     sockaddr_in remote_addr;
     sockaddr_in local_addr;
 
-    size_t window_size;
+    size_t const window_size;
+
+    double const prob_loss; // simulate packet loss, 0 - 100 inclusive
+    double const prob_corrupt; // simulate packet corruption, 0 - 100 inclusive
 
     struct rdt_header_t {
         uint32_t magic_num; // Used for packet alignment when reading from network

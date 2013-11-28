@@ -8,9 +8,18 @@
 #include <iostream> // std::cout
 #include <sstream> // std::stringstream
 #include <math.h> // ceil
+#include <algorithm> // std::min etc.
 #define round(x) ((x)>=0?(long)((x)+0.5):(long)((x)-0.5))
 
-RDTConnection::RDTConnection(int w_size) : window_size(w_size), sock_fd( -1 ), is_listener( false ), got_FIN( false ), listener_connected( false ) {
+RDTConnection::RDTConnection(int w_size, double ploss, double pcorrupt)
+    :   window_size( w_size ),
+        prob_loss( std::max(0.0, std::min(100.0, ploss)) ),
+        prob_corrupt( std::max(0.0, std::min(pcorrupt, 100.0)) ),
+        sock_fd( -1 ),
+        got_FIN( false ),
+        is_listener( false ),
+        listener_connected( false )
+{
     memset( &remote_addr, 0, sizeof( remote_addr ));
     memset( &local_addr, 0, sizeof( local_addr ));
 }
@@ -599,6 +608,8 @@ bool RDTConnection::read_network_packet(rdt_packet_t &pkt, bool verify_remote, s
             valid_host = recv_addr->sin_addr.s_addr == remote_addr.sin_addr.s_addr
                         && htons(pkt.header.src_port) == remote_addr.sin_port;
 
+            srand(time(0)); // seed for simulating random network errors
+
             if (len == -1) {
                 if (errno == EWOULDBLOCK) {
                     log_event("socket timeout while receiving packet");
@@ -613,6 +624,15 @@ bool RDTConnection::read_network_packet(rdt_packet_t &pkt, bool verify_remote, s
             } else if (verify_remote && !valid_host) {
                 drop_packet(pkt, "packet received from unexpected host");
                 valid_header = false;
+            } else if ( random() % 100 < prob_loss ) {
+                // Simulate network packet loss
+                drop_packet(pkt, "(simulated) socket timeout while receiving packet");
+                valid_packet = false;
+                errno = EWOULDBLOCK;
+            } else if ( random() % 100 < prob_corrupt ) {
+                // Simulate packet corruption
+                drop_packet(pkt, "packet corrupted");
+                valid_packet = false;
             } else if (len == max_read) {
                 valid_packet = true;
             }

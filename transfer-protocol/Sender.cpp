@@ -46,8 +46,7 @@ int main( int argc, char **argv ) {
             break;
     }
 
-    // server = new RDTConnection(cwnd, pdrop, pcorrupt);
-    server = new RDTConnection(cwnd);
+    server = new RDTConnection(cwnd, pdrop, pcorrupt);
 
     if (!server->listen(port)) {
         std::cout << "server listen failed, aborting" << std::endl;

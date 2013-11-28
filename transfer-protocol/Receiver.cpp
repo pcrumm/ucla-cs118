@@ -59,8 +59,7 @@ int main( int argc, char** argv ) {
         exit(-1);
     }
 
-    // conn = new RDTConnection(WINDOW_SIZE, pdrop, pcorrupt);
-    conn = new RDTConnection(WINDOW_SIZE);
+    conn = new RDTConnection(WINDOW_SIZE, pdrop, pcorrupt);
 
     if (!conn->connect(ip_addr, port)) {
         std::cout << "Connection failed, aborting" << std::endl;
