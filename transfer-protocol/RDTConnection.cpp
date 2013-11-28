@@ -381,7 +381,11 @@ bool RDTConnection::send_data( std::string const &data ) {
          * every sequence number less than it is as sent.
          */
         if (read_network_packet(pkt)) {
-            if (!isACK(pkt)) {
+            if (isFIN(pkt)) {
+                log_event("Send data interrupted: remote closed the connection");
+                close();
+                return false;
+            } else if (!isACK(pkt)) {
                 drop_packet(pkt, "expected ACK and received non-ACK packet.");
             } else {
                 std::stringstream ss;
@@ -424,9 +428,14 @@ bool RDTConnection::receive_data( std::string &data ) {
     rdt_packet_t response_pkt;
     uint16_t timeout_count = 0;
     size_t total_bytes_received = 0;
+    data = "";
     while (true) {
         if (read_network_packet(pkt)) {
-            if (pkt.header.seq_num < total_bytes_received) {
+            if (isFIN(pkt)) {
+                log_event("Receive data interrupted: remote closed the connection");
+                close();
+                return false;
+            } else if (pkt.header.seq_num < total_bytes_received) {
                 drop_packet(pkt, "duplicate packet received");
                 continue;
             }
