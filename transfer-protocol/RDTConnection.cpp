@@ -291,7 +291,7 @@ bool RDTConnection::send_data( std::string const &data ) {
     struct connection_window {
         bool is_acked;          // Used to track if the data in this window was acknowledged.
         size_t seq_num;         // The sequence number for this particular data item.
-        clock_t sent_on_clock;  // The clock cycle the data was sent on. Used for computing timeout.
+        timeval sent_on_time;   // The time the data was sent on. Used for computing timeout.
     };
 
     struct connection_window *windows = (struct connection_window*)malloc(sizeof(struct connection_window) * necessary_windows);
@@ -300,7 +300,8 @@ bool RDTConnection::send_data( std::string const &data ) {
     for (int i = 0; i < necessary_windows; i++) {
         windows[i].is_acked = true;
         windows[i].seq_num = 0;
-        windows[i].sent_on_clock = 0;
+        windows[i].sent_on_time.tv_sec = 0;
+        windows[i].sent_on_time.tv_usec = 0;
     }
 
     size_t current_unacknowledged_bytes = 0;
@@ -313,6 +314,8 @@ bool RDTConnection::send_data( std::string const &data ) {
     rdt_packet_t pkt;
     size_t current_packet_size;
     size_t current_packet_max_size;
+
+    bool fast_retransmit = false;
 
     while (true) {
         // If everything is acknowledged, we're done!
@@ -337,7 +340,7 @@ bool RDTConnection::send_data( std::string const &data ) {
             pkt.header.seq_num = total_acknowledged_bytes + current_unacknowledged_bytes;
             windows[current_window].is_acked = false;
             windows[current_window].seq_num = pkt.header.seq_num;
-            windows[current_window].sent_on_clock = clock();
+            gettimeofday(&windows[current_window].sent_on_time, NULL);
 
             if ((current_unacknowledged_bytes + total_acknowledged_bytes) >= data_length) {
                 setEOF(pkt);
@@ -360,20 +363,35 @@ bool RDTConnection::send_data( std::string const &data ) {
          * then we reset to that packet and begin resending. If not, we start checking for ACKs.
          */
         for (int i = 0; i < necessary_windows; i++) {
-            if (!windows[i].is_acked && (((clock() * USEC_CONVERSION - windows[i].sent_on_clock * USEC_CONVERSION) / CLOCKS_PER_SEC) > RDT_TIMEOUT_USEC)) {
+            timeval now;
+            gettimeofday(&now, NULL);
+
+            long delta_sec  = now.tv_sec  - windows[i].sent_on_time.tv_sec;
+            long delta_usec = now.tv_usec - windows[i].sent_on_time.tv_usec;
+            bool timed_out = delta_sec > RDT_TIMEOUT_SEC || (delta_sec == RDT_TIMEOUT_SEC && delta_usec > RDT_TIMEOUT_USEC);
+
+            if (!windows[i].is_acked && timed_out) {
                 // The packet has timed out. Resend it, and everything after it. To do this, set the
                 // current_unacknowledged_bytes to empty, and make sure every packet after is marked
-                // as acked so we can write over it.
+                // as acked so we can write over it, and rewind the current_window index.
                 current_unacknowledged_bytes = 0;
+                current_window = (current_window - 1) % necessary_windows;
 
-                for (int j = i + 1; j < necessary_windows; j++)
+                for (int j = i; j < necessary_windows; j++)
                     windows[j].is_acked = true;
 
                 std::stringstream ss;
                 ss << "SEQ NUM " << windows[i].seq_num << " has timed out. Resend!";
                 log_event(ss.str());
+                fast_retransmit = true;
                 break;
             }
+        }
+
+        // Avoid reading another network packet and just resend now
+        if (fast_retransmit) {
+            fast_retransmit = false;
+            continue;
         }
 
         /**
@@ -416,6 +434,7 @@ bool RDTConnection::send_data( std::string const &data ) {
                     total_acknowledged_bytes = pkt.header.ack_num;
                     current_unacknowledged_bytes -= (pkt.header.ack_num - last_ack);
                     last_ack = pkt.header.ack_num;
+                    timeout_count = 0;
                 }
             }
         }
@@ -458,6 +477,7 @@ bool RDTConnection::receive_data( std::string &data ) {
             const std::string packet_data = pkt.data;
             data.append(packet_data);
 
+            timeout_count = 0;
             total_bytes_received += pkt.header.data_len;
 
             // Now send an ACK
