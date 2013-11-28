@@ -306,6 +306,7 @@ bool RDTConnection::send_data( std::string const &data ) {
     size_t current_unacknowledged_bytes = 0;
     size_t total_acknowledged_bytes = 0;
     size_t last_ack = 0;
+    uint16_t timeout_count = 0;
 
     size_t data_length = data.length();
 
@@ -381,6 +382,7 @@ bool RDTConnection::send_data( std::string const &data ) {
          * every sequence number less than it is as sent.
          */
         if (read_network_packet(pkt)) {
+            timeout_count = 0;
             if (isFIN(pkt)) {
                 log_event("Send data interrupted: remote closed the connection");
                 close();
@@ -418,7 +420,13 @@ bool RDTConnection::send_data( std::string const &data ) {
             }
         }
         else {
-            // @todo handle a timeout as necessary
+            timeout_count++;
+
+            if (timeout_count == MAX_TIMEOUTS) {
+                log_event("Timeout limit reached. Giving up.");
+                close();
+                return false;
+            }
         }
     }
 }
