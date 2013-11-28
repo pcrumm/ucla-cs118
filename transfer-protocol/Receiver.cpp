@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cstdlib>
+#include <cstring> // memset, etc.
 #include <signal.h>
 #include <netdb.h> // hostent, etc.
 #include <arpa/inet.h> // inet_htop

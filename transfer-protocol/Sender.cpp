@@ -1,5 +1,6 @@
 #include <iostream>
 #include <cstdlib>
+#include <cstring> // memset, etc.
 #include <signal.h>
 #include <fcntl.h>
 #include <unistd.h>
