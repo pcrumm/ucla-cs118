@@ -17,6 +17,29 @@
 \maketitle
 
 \section{Implementation Details}
+\subsection{Packet Description}
+
+We defined several fields in the header of our packet in order to implement a reliable data transfer protocol. The first is an unsigned 32 bit integer, which holds the packet's magic number. Since this number appears at the start of the packet header, we use it to determine if we are looking at a potential packet. In the (unlikely) event that some program sends UDP packets to our process' socket, their payload will appear in our socket's buffer. Since this garbage data can disrupt our program, we begin throwing away bytes until we find a byte pattern matching the magic number and attempt to read it. Although this method can potentially corrupt several valid packets, the system will eventually stabilize and return on track.
+
+Next we store two 16 bit integers, the source and destination ports of our connection. Although UDP already specifies the port and IP of the sender, we use these values to double check which remote host we are communicating with.
+
+Then we use two 32 bit integers, a sequence number and an ACK number, to implement reliable data transfer. The sequence number allows the remote host to order the data properly while the ACK returns feedback about which packets were received.
+
+Next a 16 bit integer is used to denote the size of the payload. Although our packets have a fixed maximum size, only valid payload bytes are sent over the network without any padding. Thus the data length field allows us to use variably sized payloads without worrying about padding.
+
+Lastly our packet header includes enough room for 16 1-bit flags. We used these fields for flags like SYN, SYNACK, FIN, FINACK, EOF, and ACK, explained in detail in the next few sections.
+
+\subsection{Establishing a Connection}
+
+We used TCP's three-way handshake as inspiration for reliably establishing a connection between two hosts. The first host initiates the connection by sending a SYN packet (having set the appropriate flag) to the second host. If the second host is listening for connections, it replies with a SYNACK indicating it has received the connection request, and sends a SYN packet of its own. The first host then replies with its own SYNACK to establish a connection the other way. Once a host receives a SYNACK it is able to start sending data. In case one of these SYNACKs is lost, one of the remotes can resend a SYN packet and hopefully receive a reply.
+
+\subsection{Tearing down a Connection}
+
+A three-way handshake is also used to tear down a connection. The first host wishing to close the connection sends a FIN packet, which the second host replies with FINACK, which closes the connection one way. The second host also sends a FIN packet, and only after the first host replies with a FINACK is the connection fully closed.
+
+If at any point a host experiences the max number of timeouts (defined as 5), it assumes the remote host is no longer present and attempts to close the connection by sending a FIN packet. If it's attempts to close the connection timeout the max number of times, the host treats the connection as fully closed.
+
+\subsection{Go-Back-N Protocol}
 
 \section{Implementation Difficulties}
 We did not find any major difficulty in the implementation of the project. The primary difficulty encountered concerned the alignment of SEQ and ACK numbers--the math must be identical for the proper packet to be acknowledged. We initially attempted to use a \emph{uint16\_t} to store these numbers, but ran into overflow issues. We initially attempted to discern between an incorrect SEQ or ACK number and an overflow, however, after some time, we found this to be very tricky to get right. Instead, we opted to raise the size of these integers--to \emph{uint32\_t}--so that this is now a non-issue.
