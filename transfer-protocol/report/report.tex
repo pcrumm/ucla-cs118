@@ -23,28 +23,28 @@ We defined several fields in the header of our packet in order to implement a re
 
 Next we store two 16 bit integers, the source and destination ports of our connection. Although UDP already specifies the port and IP of the sender, we use these values to double check which remote host we are communicating with.
 
-Then we use two 32 bit integers, a sequence number and an ACK number, to implement reliable data transfer. The sequence number allows the remote host to order the data properly while the ACK returns feedback about which packets were received.
+Then we use two 32 bit integers, a sequence number and an \emph{ACK} number, to implement reliable data transfer. The sequence number allows the remote host to order the data properly while the \emph{ACK} returns feedback about which packets were received.
 
 Next a 16 bit integer is used to denote the size of the payload. Although our packets have a fixed maximum size, only valid payload bytes are sent over the network without any padding. Thus the data length field allows us to use variably sized payloads without worrying about padding.
 
-Lastly our packet header includes enough room for 16 1-bit flags. We used these fields for flags like SYN, SYNACK, FIN, FINACK, EOF, and ACK, explained in detail in the next few sections.
+Lastly our packet header includes enough room for 16 1-bit flags. We used these fields for flags like \emph{SYN}, \emph{SYNACK}, \emph{FIN}, \emph{FINACK}, \emph{EOF}, and \emph{ACK}, explained in detail in the next few sections.
 
 \subsection{Establishing a Connection}
 
-We used TCP's three-way handshake as inspiration for reliably establishing a connection between two hosts. The first host initiates the connection by sending a SYN packet (having set the appropriate flag) to the second host. If the second host is listening for connections, it replies with a SYNACK indicating it has received the connection request, and sends a SYN packet of its own. The first host then replies with its own SYNACK to establish a connection the other way. Once a host receives a SYNACK it is able to start sending data. In case one of these SYNACKs is lost, one of the remotes can resend a SYN packet and hopefully receive a reply.
+We used TCP's three-way handshake as inspiration for reliably establishing a connection between two hosts. The first host initiates the connection by sending a \emph{SYN} packet (having set the appropriate flag) to the second host. If the second host is listening for connections, it replies with a \emph{SYNACK} indicating it has received the connection request, and sends a \emph{SYN} packet of its own. The first host then replies with its own \emph{SYNACK} to establish a connection the other way. Once a host receives a \emph{SYNACK} it is able to start sending data. In case one of these \emph{SYNACK}s is lost, one of the remotes can resend a \emph{SYN} packet and hopefully receive a reply.
 
 \subsection{Tearing down a Connection}
 
-A three-way handshake is also used to tear down a connection. The first host wishing to close the connection sends a FIN packet, which the second host replies with FINACK, which closes the connection one way. The second host also sends a FIN packet, and only after the first host replies with a FINACK is the connection fully closed.
+A three-way handshake is also used to tear down a connection. The first host wishing to close the connection sends a \emph{FIN} packet, which the second host replies with \emph{FINACK}, which closes the connection one way. The second host also sends a \emph{FIN} packet, and only after the first host replies with a \emph{FINACK} is the connection fully closed.
 
-If at any point a host experiences the max number of timeouts (defined as 5), it assumes the remote host is no longer present and attempts to close the connection by sending a FIN packet. If it's attempts to close the connection timeout the max number of times, the host treats the connection as fully closed.
+If at any point a host experiences the max number of timeouts (defined as 5), it assumes the remote host is no longer present and attempts to close the connection by sending a \emph{FIN} packet. If it's attempts to close the connection timeout the max number of times, the host treats the connection as fully closed.
 
 \subsection{Go-Back-N Protocol}
 
 We utilize the Go-Back-N technique to ensure the proper receipt of all sent packets. We utilize a (user-specified) command window of size \emph{cwnd} bytes, which we split into multiple packets as necessary based on the maximum packet size. We send these packets, then seek an \emph{ACK} response from the other party. We wait for this \emph{ACK} response for a defined timeout window, currently 500 milliseconds. After this window has elapsed, we resend the last packet acknowledged and all packets sent since.
 
 \section{Implementation Difficulties}
-We did not find any major difficulty in the implementation of the project. The primary difficulty encountered concerned the alignment of SEQ and ACK numbers--the math must be identical for the proper packet to be acknowledged. We initially attempted to use a \emph{uint16\_t} to store these numbers, but ran into overflow issues. We initially attempted to discern between an incorrect SEQ or ACK number and an overflow, however, after some time, we found this to be very tricky to get right. Instead, we opted to raise the size of these integers--to \emph{uint32\_t}--so that this is now a non-issue.
+We did not find any major difficulty in the implementation of the project. The primary difficulty encountered concerned the alignment of \emph{SEQ} and \emph{ACK} numbers--the math must be identical for the proper packet to be acknowledged. We initially attempted to use a \emph{uint16\_t} to store these numbers, but ran into overflow issues. We initially attempted to discern between an incorrect \emph{SEQ} or \emph{ACK} number and an overflow, however, after some time, we found this to be very tricky to get right. Instead, we opted to raise the size of these integers--to \emph{uint32\_t}--so that this is now a non-issue.
 
 
 \end{document}
