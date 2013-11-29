@@ -471,7 +471,7 @@ bool RDTConnection::receive_data( std::string &data ) {
 
             // If the above checks pass, this is a valid packet.
             const std::string packet_data = pkt.data;
-            data.append(packet_data);
+            data.append(packet_data, 0, pkt.header.data_len); // Avoids problems with garbage chars for half filled packets
 
             timeout_count = 0;
             total_bytes_received += pkt.header.data_len;

@@ -3,9 +3,7 @@
 #include <netinet/in.h> // sockaddr_in
 #include <string> // std::string
 
-// We want to send one RDT segment per UDP packet and avoid IP fragmentation
-// #define MTU 576 // minimum MTU guaranteed by IPv4
-#define MTU 1500 // ethernet MTU is defined as 1500 bytes
+#define MTU 1024 // Project spec defines max packet size of 1KB
 #define IP_HEADER 20
 #define UDP_HEADER 8
 #define MSS (MTU - IP_HEADER - UDP_HEADER) // Max payload size for an actual segment
