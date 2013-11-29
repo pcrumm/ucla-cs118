@@ -41,6 +41,8 @@ If at any point a host experiences the max number of timeouts (defined as 5), it
 
 \subsection{Go-Back-N Protocol}
 
+We utilize the Go-Back-N technique to ensure the proper receipt of all sent packets. We utilize a (user-specified) command window of size \emph{cwnd} bytes, which we split into multiple packets as necessary based on the maximum packet size. We send these packets, then seek an \emph{ACK} response from the other party. We wait for this \emph{ACK} response for a defined timeout window, currently 500 milliseconds. After this window has elapsed, we resend the last packet acknowledged and all packets sent since.
+
 \section{Implementation Difficulties}
 We did not find any major difficulty in the implementation of the project. The primary difficulty encountered concerned the alignment of SEQ and ACK numbers--the math must be identical for the proper packet to be acknowledged. We initially attempted to use a \emph{uint16\_t} to store these numbers, but ran into overflow issues. We initially attempted to discern between an incorrect SEQ or ACK number and an overflow, however, after some time, we found this to be very tricky to get right. Instead, we opted to raise the size of these integers--to \emph{uint32\_t}--so that this is now a non-issue.
 
