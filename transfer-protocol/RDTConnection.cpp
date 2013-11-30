@@ -22,6 +22,8 @@ RDTConnection::RDTConnection(int w_size, double ploss, double pcorrupt)
 {
     memset( &remote_addr, 0, sizeof( remote_addr ));
     memset( &local_addr, 0, sizeof( local_addr ));
+
+    srand(time(0)); // seed for simulating random network errors
 }
 
 RDTConnection::~RDTConnection() {
@@ -652,8 +654,6 @@ bool RDTConnection::read_network_packet(rdt_packet_t &pkt, bool verify_remote, s
 
             valid_host = recv_addr->sin_addr.s_addr == remote_addr.sin_addr.s_addr
                         && htons(pkt.header.src_port) == remote_addr.sin_port;
-
-            srand(time(0)); // seed for simulating random network errors
 
             if (len == -1) {
                 if (errno == EWOULDBLOCK) {
