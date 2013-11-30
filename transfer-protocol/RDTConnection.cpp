@@ -177,7 +177,7 @@ void RDTConnection::close(bool force_teardown) {
         rdt_packet_t pkt;
 
         // Wait for the remote host to acknowledge our FIN
-        while (!got_ACK && num_timeouts < MAX_TIMEOUTS) {
+        while (!got_ACK && num_timeouts < MAX_HANDSHAKE_TIMEOUTS) {
             if (resend_pkt) {
                 build_network_packet(pkt, "");
                 setFIN(pkt);
@@ -196,7 +196,7 @@ void RDTConnection::close(bool force_teardown) {
 
         if (got_ACK) { // Successfully got a FINACK
             num_timeouts = 0;
-            while (!got_FIN && num_timeouts < MAX_TIMEOUTS) {
+            while (!got_FIN && num_timeouts < MAX_HANDSHAKE_TIMEOUTS) {
                 if (read_network_packet(pkt))
                     got_FIN = isFIN(pkt);
                 else if (errno == EWOULDBLOCK)
@@ -442,7 +442,7 @@ bool RDTConnection::send_data( std::string const &data ) {
         else {
             timeout_count++;
 
-            if (timeout_count == MAX_TIMEOUTS) {
+            if (timeout_count == MAX_TRANSMIT_TIMEOUTS) {
                 log_event("Timeout limit reached. Giving up.");
                 close();
                 return false;
@@ -513,9 +513,9 @@ bool RDTConnection::receive_data( std::string &data ) {
             ss << "Read timeout. Set timeout count to " << timeout_count;
             log_event(ss.str());
 
-            if (timeout_count == MAX_TIMEOUTS) {
+            if (timeout_count == MAX_TRANSMIT_TIMEOUTS) {
                 std::stringstream ss;
-                ss << "Timeout limit " << MAX_TIMEOUTS << " exceeded. Giving up.";
+                ss << "Timeout limit " << MAX_TRANSMIT_TIMEOUTS << " exceeded. Giving up.";
                 log_event(ss.str());
 
                 return false;
