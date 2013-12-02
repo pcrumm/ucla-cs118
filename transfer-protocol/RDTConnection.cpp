@@ -463,7 +463,7 @@ bool RDTConnection::receive_data( std::string &data ) {
     bool got_EOF = false;
     while (true) {
         if (read_network_packet(pkt)) {
-            if (pkt.header.seq_num < total_bytes_received) {
+            if (pkt.header.seq_num <= total_bytes_received) {
                 std::stringstream ss;
                 ss << "Duplicate packet " << pkt.header.seq_num << " detected. Resending ACK";
                 log_event(ss.str());
