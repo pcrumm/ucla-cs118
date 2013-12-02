@@ -684,13 +684,13 @@ bool RDTConnection::read_network_packet(rdt_packet_t &pkt, bool verify_remote, s
                 // Simulate network packet loss
                 // Do not apply this on EOFACK packets to avoid synchronization issues
                 drop_packet(pkt, "(simulated) socket timeout while receiving packet");
-                valid_packet = false;
                 errno = EWOULDBLOCK;
+                return false;
             } else if ( !isEOFACK(pkt) && (random() % 100 < prob_corrupt) ) {
                 // Simulate packet corruption
                 // Do not apply this on EOFACK packets to avoid synchronization issues
                 drop_packet(pkt, "packet corrupted");
-                valid_packet = false;
+                return false;
             } else if (len == max_read) {
                 valid_packet = true;
             }
