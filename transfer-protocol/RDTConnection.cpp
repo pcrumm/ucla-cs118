@@ -312,6 +312,9 @@ bool RDTConnection::send_data( std::string const &data ) {
     uint16_t timeout_count = 0;
 
     size_t data_length = data.length();
+    std::stringstream ss;
+    ss << "Preparing to transmit " << data_length << " bytes!";
+    log_event(ss.str());
 
     rdt_packet_t pkt;
     size_t current_packet_size;
@@ -461,7 +464,15 @@ bool RDTConnection::receive_data( std::string &data ) {
     while (true) {
         if (read_network_packet(pkt)) {
             if (pkt.header.seq_num < total_bytes_received) {
-                drop_packet(pkt, "duplicate packet received");
+                std::stringstream ss;
+                ss << "Duplicate packet " << pkt.header.seq_num << " detected. Resending ACK";
+                log_event(ss.str());
+
+                build_network_packet(response_pkt, "");
+                response_pkt.header.ack_num = pkt.header.seq_num;
+                setACK(response_pkt);
+
+                broadcast_network_packet(response_pkt);
                 continue;
             }
             else if ((int)(pkt.header.seq_num - MSS) > (int)total_bytes_received) {
