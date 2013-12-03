@@ -334,9 +334,9 @@ bool RDTConnection::send_data( std::string const &data ) {
          * the window can hold. Once we've filled the window size, we start reading.
          * We take care to not transmit over an unACKED window.
          */
-        while (current_unacknowledged_bytes < window_size && windows[current_window].is_acked) {
+        while (current_unacknowledged_bytes + total_acknowledged_bytes < data_length && current_unacknowledged_bytes < window_size && windows[current_window].is_acked) {
             // We need to take care to not try to send any more data than the window will allow.
-            current_packet_max_size = std::min((size_t)window_size - current_unacknowledged_bytes, (size_t)MSS);
+            current_packet_max_size = std::min((size_t)window_size - current_unacknowledged_bytes, sizeof(pkt.data));
             current_packet_size = build_network_packet(pkt, data, current_packet_max_size, total_acknowledged_bytes + current_unacknowledged_bytes);
             current_unacknowledged_bytes += current_packet_size;
 
@@ -483,8 +483,9 @@ bool RDTConnection::receive_data( std::string &data ) {
             }
 
             // If the above checks pass, this is a valid packet.
-            const std::string packet_data = pkt.data;
-            data.append(packet_data, 0, pkt.header.data_len); // Avoids problems with garbage chars for half filled packets
+            if ( pkt.header.data_len > 0 ) {
+                data.append(pkt.data, pkt.header.data_len);
+            }
 
             timeout_count = 0;
             total_bytes_received += pkt.header.data_len;
@@ -559,11 +560,11 @@ inline int RDTConnection::build_network_packet(rdt_packet_t &pkt, std::string co
     pkt.header.dst_port  = ntohs(remote_addr.sin_port);
     pkt.header.seq_num   = 0;
     pkt.header.ack_num   = 0;
-    pkt.header.data_len  = std::min(sizeof(pkt.data), data.size());
+    pkt.header.data_len  = std::max(0ul, std::min(sizeof(pkt.data), data.size() - data_offset));
     pkt.header.flags     = 0;
 
     // First, ensure the offset is valid
-    if (data_offset > strlen(data.c_str()))
+    if (data_offset > data.size())
         return 0;
 
     // Next, compute the correct length based on any caller limitations.

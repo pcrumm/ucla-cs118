@@ -78,7 +78,7 @@ int main( int argc, char **argv ) {
         int read_len = 0;
         std::string file_contents = "";
         while( (read_len = read(fd, buf, MAX_BUF_SIZE)) > 0) {
-            file_contents += buf;
+            file_contents.append(buf, read_len);
             memset(buf, 0, MAX_BUF_SIZE);
         }
 
