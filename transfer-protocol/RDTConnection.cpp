@@ -560,7 +560,7 @@ inline int RDTConnection::build_network_packet(rdt_packet_t &pkt, std::string co
     pkt.header.dst_port  = ntohs(remote_addr.sin_port);
     pkt.header.seq_num   = 0;
     pkt.header.ack_num   = 0;
-    pkt.header.data_len  = std::max(0ul, std::min(sizeof(pkt.data), data.size() - data_offset));
+    pkt.header.data_len  = std::max((unsigned int)0, (unsigned int)std::min(sizeof(pkt.data), data.size() - data_offset));
     pkt.header.flags     = 0;
 
     // First, ensure the offset is valid
